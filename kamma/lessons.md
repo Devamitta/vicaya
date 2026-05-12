@@ -1,0 +1,2 @@
+- 2026-05-12 [WORKFLOW] Old vault notes used wrong para numbers for cross-sutta book files (s0202m_mul para 261 = MN78, not MN60). DPD lookup is authoritative; user confirmed old notes were testers, don't over-verify when cleaning up legacy data.
+- 2026-05-12 [POSITIVE] Resolving all CST codes via CLI before editing vault files (batch lookup) was efficient — produced accurate replacements in one pass.

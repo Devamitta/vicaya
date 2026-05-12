@@ -1,0 +1,21 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Local configuration (per-machine paths). See .env.example for the schema.
+.env
+
+# YouTube transcript cache — grows over time, regenerated on demand.
+data/youtube_cache/*
+!data/youtube_cache/.gitkeep
+
+# OS junk
+.DS_Store
+Thumbs.db

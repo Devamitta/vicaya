@@ -1,0 +1,13 @@
+[project]
+name = "vicaya"
+version = "0.1.0"
+description = "A multi-source Pāḷi and Buddhist research workflow that runs as a Claude Code skill."
+requires-python = ">=3.13"
+dependencies = [
+    "youtube-transcript-api>=1.2.4",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]
