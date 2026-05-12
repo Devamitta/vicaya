@@ -1,2 +1,4 @@
 - 2026-05-12 [WORKFLOW] Old vault notes used wrong para numbers for cross-sutta book files (s0202m_mul para 261 = MN78, not MN60). DPD lookup is authoritative; user confirmed old notes were testers, don't over-verify when cleaning up legacy data.
 - 2026-05-12 [POSITIVE] Resolving all CST codes via CLI before editing vault files (batch lookup) was efficient — produced accurate replacements in one pass.
+- 2026-05-12 [BEHAVIOR] In-run SKILL.md edits by the agent displaced two hard rules into Phase 4b and orphaned a code block — structural corruption from sloppy inline edits during a live run.
+- 2026-05-12 [POSITIVE] User raised loop-back limit from 1 to 2 immediately — research naturally has multiple citation chains; don't be too conservative with recursion limits.

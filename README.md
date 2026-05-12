@@ -32,10 +32,18 @@ Each source is optional — if the tool or path isn't configured it is silently 
 2. Install whichever of these you want to use: `obsidian` CLI, `calibredb`
    (Calibre 9+), `yt-dlp`, `sqlite3`, `gemini` CLI.
 3. `uv sync` to install Python dependencies.
-4. Symlink the skill folder into your agent's skills directory:
+4. Symlink the skill folder into your agents' skills directories. Using
+   symlinks ensures that changes made in this repository are immediately
+   reflected in all agents.
 
+   **Gemini CLI / OpenCode:**
    ```bash
-   ln -s "$(pwd)/skill/vicaya" ~/.claude/skills/vicaya
+   ln -sf "$(pwd)/skill/vicaya" ~/.agents/skills/vicaya
+   ```
+
+   **Claude Code:**
+   ```bash
+   ln -sf "$(pwd)/skill/vicaya" ~/.claude/skills/vicaya
    ```
 
 5. Run `/vicaya <a question>` in Claude Code.
@@ -163,21 +171,35 @@ but you did find a `dpd.db` in step 2, go back and fill in that path.
 
 ### 5 — Symlink the skill
 
-For Claude Code:
+To make the skill available across all your agents while keeping it in sync
+with this repository, create symlinks in the following locations:
+
+**For Gemini CLI and OpenCode (shared central directory):**
+
+```bash
+mkdir -p ~/.agents/skills
+ln -sf "$(pwd)/skill/vicaya" ~/.agents/skills/vicaya
+```
+
+**For Claude Code:**
 
 ```bash
 mkdir -p ~/.claude/skills
 ln -sf "$(pwd)/skill/vicaya" ~/.claude/skills/vicaya
 ```
 
-Verify the symlink resolves:
+**Verification:**
 
 ```bash
+# Check Gemini/OpenCode
+ls ~/.agents/skills/vicaya/SKILL.md
+
+# Check Claude
 ls ~/.claude/skills/vicaya/SKILL.md
 ```
 
-For other agents that read skill files from a different directory, symlink
-`skill/vicaya/` into the appropriate location.
+If you ever move or rename this repository, you will need to re-run these
+commands to update the symlinks.
 
 ### 6 — Final verification
 
