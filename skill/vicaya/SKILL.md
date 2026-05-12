@@ -62,6 +62,7 @@ Subcommands (each prints JSON to stdout):
 | `search-canon QUERY` | `--books PAT...` `--lang pali\|english\|chinese\|any` `--limit N` | Default books: sutta mūla (`s*_mul`) |
 | `resolve-citation BOOK_CODE PARANUM` | — | Returns `Citation` JSON |
 | `search-calibre QUERY` | `--tags T...` `--limit N` | Diacritics stripped automatically |
+| `lookup-book VALUE` | — | Translate any CST book identifier into the others (filename, table, Pāḷi title, gui code, DPD code) |
 | `gemini-cross-check` | `--timeout N`; **prompt on stdin** | Pipe the synthesis in; avoids quoting hell |
 
 Parse the JSON with `jq` or read it as a file. Only fall back to `uv run python -c "..."` if you genuinely need to combine helpers in one step — and if so, write a short `.py` script to a temp path and run that, rather than a heredoc.
@@ -76,6 +77,30 @@ Every helper returns dataclasses serialised to JSON by the CLI. Field names are 
 - **CalibreHit**: `book_id` (int), `title` (str), `authors` (str), `tags` (list[str]), `location` (str), `snippet` (str — populated only when FTS is ready).
 - **YouTubeHit**: `video_id` (str), `title` (str), `channel` (str), `channel_id` (str), `duration` (float | null, seconds), `url` (str), `tier` (str — `trusted` | `probationary`; `excluded` never appears here, those are filtered out).
 - **YouTubeTranscript**: `video_id` (str), `lang` (str, e.g. `"en"`), `is_auto` (bool — **true means Pāḷi terms are unreliable; paraphrase, don't quote**), `segments` (list of `{start, duration, text}`), `fetched` (ISO date).
+
+## Book-identifier lookups (`lookup-book`)
+
+Use when you've got one form of a CST book identifier and need another — e.g.
+an unfamiliar code lands in your search results, the user mentions a book by
+its Pāḷi name, or you have a `dpd_book_code` like `DN` / `DNa` and need the
+SQLite-table form. Loads dpd-db's `cst_book_translator` live from the sibling
+repo.
+
+Accepts any of: `cst_filename` (`s0101m.mul`), vicaya's SQLite table form
+(`s0101m_mul`), `cst_book_name` (`Dīghanikāya, Sīlakkhandhavaggapāḷi`),
+`gui_book_code` (`dn1`), or `dpd_book_code` (`DN`, `DNa`). Auto-detects. A
+single DPD code like `DN` expands to all matching books (e.g. 3 DN mūla volumes).
+
+```bash
+uv run tools/research_sources.py lookup-book s0101m_mul
+uv run tools/research_sources.py lookup-book DN
+uv run tools/research_sources.py lookup-book "Majjhimanikāya, Mūlapaṇṇāsapāḷi"
+```
+
+Returns a JSON list of `{cst_filename, cst_table, cst_book_name, gui_book_code,
+dpd_book_code}`. Empty list on no match. The embedded book-code map below is
+still the primary reference for picking `--books` patterns; `lookup-book` is
+for one-off translations during a run.
 
 ## The seven phases
 

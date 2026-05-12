@@ -23,6 +23,7 @@ from tools.research_sources import (  # noqa: E402
     CanonHit,
     VaultHit,
     gemini_cross_check,
+    lookup_book,
     resolve_citation,
     search_calibre,
     search_canon,
@@ -47,6 +48,22 @@ gemini_available = pytest.mark.skipif(
 dpd_available = pytest.mark.skipif(
     DEFAULT_DPD_DB is None or not DEFAULT_DPD_DB.exists(),
     reason="dpd.db not configured (VICAYA_DPD_DB)",
+)
+
+
+def _dpd_translator_present() -> bool:
+    for candidate in (
+        Path(__file__).resolve().parents[2] / "dpd-db" / "tools" / "cst_book_translator.py",
+        Path.home() / "MyFiles" / "3_Active" / "dpd-db" / "tools" / "cst_book_translator.py",
+    ):
+        if candidate.exists():
+            return True
+    return False
+
+
+cst_translator_available = pytest.mark.skipif(
+    not _dpd_translator_present(),
+    reason="dpd-db sibling repo with cst_book_translator.py not available",
 )
 
 
@@ -304,3 +321,52 @@ class TestTranscriptCache:
         assert result.video_id == "cachedvid"
         assert result.is_auto is False
         assert result.segments[0]["text"] == "hello"
+
+
+@cst_translator_available
+class TestLookupBook:
+    EXPECTED_KEYS = {
+        "cst_filename",
+        "cst_table",
+        "cst_book_name",
+        "gui_book_code",
+        "dpd_book_code",
+    }
+
+    def _dn1(self, hits):
+        assert len(hits) == 1
+        h = hits[0]
+        assert set(h.keys()) == self.EXPECTED_KEYS
+        assert h["cst_filename"] == "s0101m.mul"
+        assert h["cst_table"] == "s0101m_mul"
+        assert h["gui_book_code"] == "dn1"
+        assert h["dpd_book_code"] == "DN"
+        assert "Sīlakkhandha" in h["cst_book_name"]
+
+    def test_cst_filename(self):
+        self._dn1(lookup_book("s0101m.mul"))
+
+    def test_table_underscore(self):
+        self._dn1(lookup_book("s0101m_mul"))
+
+    def test_book_name(self):
+        self._dn1(lookup_book("Dīghanikāya, Sīlakkhandhavaggapāḷi"))
+
+    def test_gui_code(self):
+        self._dn1(lookup_book("dn1"))
+
+    def test_dpd_code_returns_all_dn_mula(self):
+        hits = lookup_book("DN")
+        assert len(hits) == 3
+        assert all(h["dpd_book_code"] == "DN" for h in hits)
+        assert {h["cst_table"] for h in hits} == {
+            "s0101m_mul",
+            "s0102m_mul",
+            "s0103m_mul",
+        }
+
+    def test_empty_on_no_match(self):
+        assert lookup_book("bogus") == []
+
+    def test_empty_input(self):
+        assert lookup_book("") == []

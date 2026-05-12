@@ -23,6 +23,7 @@
 ## Resources
 - Canon DB: `<dpd-db>/resources/tipitaka_translation_db/tipitaka-translation-data.db`
 - DPD DB: `<dpd-db>/dpd.db` — used by `resolve_citation` to map CST codes → human refs via `sutta_info` table
+- CST book translator: `<dpd-db>/tools/cst_book_translator.py` + `.tsv` — used by `lookup_book` to translate between cst_filename / SQLite table name / Pāḷi title / gui code / DPD code. Live-imported via file path.
 - Vault: path in `$VICAYA_VAULT_PATH`, vault name `$VICAYA_VAULT_NAME`
 - Calibre library: path in `$VICAYA_CALIBRE_LIBRARY`
 - YouTube cache: `data/youtube_cache/` (gitignored, grows over time)

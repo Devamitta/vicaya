@@ -783,6 +783,111 @@ def gemini_cross_check(prompt: str, timeout: int = 120) -> str:
     return result.stdout.strip()
 
 
+# ---------- CST book translator (sibling dpd-db) ----------
+
+_DPD_REPO_CANDIDATES = (
+    _REPO_ROOT.parent / "dpd-db",
+    Path.home() / "MyFiles" / "3_Active" / "dpd-db",
+)
+_cst_translator_module = None
+
+
+def _load_cst_translator():
+    """Import dpd-db's cst_book_translator live from the sibling repo.
+
+    Loaded by file path under a unique module name to avoid colliding with
+    vicaya's own `tools` package.
+    """
+    global _cst_translator_module
+    if _cst_translator_module is not None:
+        return _cst_translator_module
+
+    import importlib.util
+    import sys
+    import types
+
+    tried = []
+    for repo in _DPD_REPO_CANDIDATES:
+        target = repo / "tools" / "cst_book_translator.py"
+        tried.append(str(target))
+        if not target.exists():
+            continue
+
+        # The translator imports `from tools.paths import ProjectPaths`, used
+        # only in the `cst_xml_path` property which lookup_book never calls.
+        # Inject a stub so the import works regardless of which `tools` package
+        # is currently on sys.path (vicaya's, dpd-db's, or none).
+        original_tools = sys.modules.get("tools")
+        original_tools_paths = sys.modules.get("tools.paths")
+        shim_tools = types.ModuleType("tools")
+        shim_tools.__path__ = []
+        shim_paths = types.ModuleType("tools.paths")
+        shim_paths.ProjectPaths = lambda *a, **kw: None  # never called
+        sys.modules["tools"] = shim_tools
+        sys.modules["tools.paths"] = shim_paths
+        try:
+            spec = importlib.util.spec_from_file_location(
+                "_dpd_cst_book_translator", target
+            )
+            if spec is None or spec.loader is None:
+                continue
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+        except Exception as e:
+            tried[-1] = f"{target}: {e}"
+            continue
+        finally:
+            if original_tools is not None:
+                sys.modules["tools"] = original_tools
+            else:
+                sys.modules.pop("tools", None)
+            if original_tools_paths is not None:
+                sys.modules["tools.paths"] = original_tools_paths
+            else:
+                sys.modules.pop("tools.paths", None)
+        _cst_translator_module = mod
+        return mod
+
+    raise RuntimeError(
+        "cst_book_translator not found. Expected dpd-db as a sibling of vicaya. "
+        "Looked in:\n  " + "\n  ".join(tried)
+    )
+
+
+def lookup_book(value: str) -> list[dict]:
+    """Translate any CST book identifier into the other forms.
+
+    Accepts cst_filename (s0101m.mul), vicaya SQLite-table form (s0101m_mul),
+    cst_book_name (Pāḷi title), gui_book_code (dn1), or dpd_book_code (DN/DNa).
+    Returns a list of dicts; empty list on no match.
+    """
+    if not value:
+        return []
+    translator = _load_cst_translator()
+
+    # The 217 books are identified two equivalent ways:
+    #   dot form:        's0101m.mul'  — XML filename stem; what the translator uses.
+    #   underscore form: 's0101m_mul'  — what vicaya uses (SQL table names can't contain dots).
+    # 1:1 mapping, no semantic difference. Convert underscore input before lookup.
+    query = value
+    if "." not in value and "_" in value:
+        stem, _, suffix = value.rpartition("_")
+        if suffix in ("mul", "att", "tik", "nrf") and stem:
+            query = f"{stem}.{suffix}"
+
+    matches = translator.translate(query)
+    return [
+        {
+            "cst_filename": b.cst_filename,
+            "cst_table": b.cst_filename.replace(".", "_"),
+            "cst_book_name": b.cst_book_name,
+            "gui_book_code": b.gui_book_code,
+            "dpd_book_code": b.dpd_book_code,
+        }
+        for b in matches
+    ]
+
+
 # ---------- CLI ----------
 #
 # Thin argparse wrapper so agents can call helpers without `python -c` quoting hell.
@@ -851,6 +956,12 @@ def _cli() -> int:
     pt.add_argument("video_id")
     pt.add_argument("--lang", nargs="*", default=["en"])
 
+    pb = sub.add_parser("lookup-book",
+                        help="Translate any CST book identifier into the others.")
+    pb.add_argument("value",
+                    help="cst_filename (s0101m.mul), table name (s0101m_mul), "
+                         "Pāḷi title, gui code (dn1), or DPD code (DN/DNa).")
+
     args = p.parse_args()
 
     if args.cmd == "search-vault":
@@ -870,6 +981,8 @@ def _cli() -> int:
             print("error: no transcript available", file=sys.stderr)
             return 1
         _dump(tr)
+    elif args.cmd == "lookup-book":
+        _dump(lookup_book(args.value))
     elif args.cmd == "gemini-cross-check":
         prompt = sys.stdin.read()
         if not prompt.strip():
