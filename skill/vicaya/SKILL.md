@@ -11,7 +11,7 @@ Run a multi-phase research session across the user's local + web sources and wri
 
 These rules apply to every run, by every agent. They are part of the skill, not stored in any agent's private memory.
 
-1. **No AI / model attribution in the research note.** Never write "Gemini noted", "Claude found", "the AI suggested", "added by cross-check", etc. The note must read like scholarship — information and sources are what matter, not the process of producing them. If a second-pass review surfaces material, integrate it silently with proper citations to the underlying primary or secondary source.
+1. **No AI / model attribution in the scholarship body.** Never write "Gemini noted", "Claude found", "the AI suggested", "added by cross-check", etc. inside the findings, evidence, or analysis. The body must read like scholarship — information and sources are what matter, not the process of producing them. If a second-pass review surfaces material, integrate it silently with proper citations to the underlying primary or secondary source. **The only places agent identity appears are the `agent` frontmatter field and the final footer line** (see Phase 7 — Agent self-identification). Those are metadata, not scholarship.
 2. **No process or workflow logging inside the research note.** No "Improvements made" sections, no "the helper failed and I switched to X", no "this was missed in the first pass". Notes contain content; process belongs in the terminal report only (Phase 7's final summary), and self-improvement edits go into this `SKILL.md` file.
 3. **Pāḷi spelling conventions differ per source:**
    - **Canon SQLite (`tipitaka-translation-data.db`) and the Obsidian vault** use exact Pāḷi diacritics (`paṭiccasamuppāda`, `dukkha`, `nibbāna`). Search verbatim. If 0 hits, suspect a bug or the alternate niggahita (`ṃ` vs `ṁ`), not loose spelling.
@@ -501,6 +501,7 @@ Render the final markdown. Use this template:
 ---
 date: YYYY-MM-DD
 topic: <one-line topic>
+agent: "<Model family + version, e.g. Claude Opus 4.7 (claude-opus-4-7)>"
 tags:
   - research
   - pali
@@ -546,6 +547,9 @@ web_refs:
 ## Open Threads
 - <questions raised but not answered>
 - <follow-up research worth doing>
+
+---
+*Researched by <Model family + version> on YYYY-MM-DD.*
 ```
 
 ### Frontmatter rules (agents get these wrong — read carefully)
@@ -602,12 +606,34 @@ the URL. A URL pointing to `dn/dn.22.0.than.html` is DN22, *not* MN118:
 Format: `<book_id>: <title> — <author>`. The `book_id` comes from the `CalibreHit.book_id`
 field. Never invent an ID.
 
+**Rule F5 — `agent` field and footer line: self-identify accurately.**
+
+The note records which model produced it, in two places:
+
+1. The `agent` frontmatter field — quoted string, format `"<Family Version> (<exact model id>)"`.
+2. A single italic footer line at the very end of the note: `*Researched by <Family Version> on YYYY-MM-DD.*`
+
+Read your own model identity from your runtime context — do **not** guess from training
+data, and do **not** invent a version number. If you genuinely cannot determine your
+identity, write `unknown agent` in both places rather than fabricating.
+
+Examples by agent:
+
+- Claude Code: `"Claude Opus 4.7 (claude-opus-4-7)"`, `"Claude Sonnet 4.6 (claude-sonnet-4-6)"` — the exact ID is exposed in your environment context.
+- Gemini CLI: `"Gemini 2.5 Pro"` or whatever the CLI reports.
+- Codex / GPT-based: `"GPT-5.4 (codex)"` or equivalent.
+- Other: `"<Model name as the runtime reports it>"`.
+
+This is metadata, not attribution-in-scholarship — Hard Rule 1 still forbids weaving
+model identity into the findings, evidence, or analysis.
+
 ### Correct frontmatter example (reference this when writing)
 
 ```yaml
 ---
 date: 2026-05-12
 topic: "Ānāpānasati: Breath Meditation in the Nikāyas"
+agent: "Claude Opus 4.7 (claude-opus-4-7)"
 tags:
   - research
   - pali
