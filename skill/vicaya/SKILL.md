@@ -292,7 +292,7 @@ For each hit you'll cite, run `resolve-citation` with that hit's `book_code` and
 uv run tools/research_sources.py resolve-citation s0201m_mul 23
 ```
 
-**Quote representatively.** Pull up to 20 of the most pertinent paragraphs — use as many as are genuinely relevant to give a full picture, not just the first few that match.
+**Quote fully, not representatively.** Pull up to 20 of the most pertinent paragraphs and plan to use all of them in the Canon Evidence section — not just a curated sample. "Genuinely relevant" means relevant to at least one position in the perspective map; it does not mean "I'll pick the 2–3 best." If you retrieved 15 hits and your final note cites 3, you have discarded evidence without cause.
 
 **Paragraph numbers are book-global.** The `paranum` in a `CanonHit` is a continuous index across the entire book file, not local to the sutta. Always run `resolve-citation` to confirm which sutta a paragraph belongs to before citing it (see Hard Rule 9).
 
@@ -454,6 +454,10 @@ Draft the answer in your working notes. Cite as you go — never make a claim wi
 
 **Before drafting, read the "Pāḷi/English presentation" rules in the Style notes section.** Those rules govern how every Pāḷi quote and every inline Pāḷi term is rendered in the final vault note. Apply them from the first draft so you don't have to retrofit on the final pass.
 
+**Source completeness check before you write.** Review your perspective map from Phase 1. For every named position, ask: do I have the canon passages that establish it, a secondary source that analyses it, and a web or talk source where the user could learn more? If any position is thin on sources, loop back to Phases 2–4 before synthesising. More prose does not fix missing sources — only more searching does.
+
+**Use all relevant evidence.** If you collected 15 canon hits and 6 library sources, all of them go in the note — not a representative sample. Drop a hit only if it is a verbatim duplicate of one already quoted. Paraphrase only when the full text is unavailable. Prefer blockquotes (Rule P1) over inline summaries everywhere.
+
 **Recursive citation check.** As you draft, watch for sources that are load-bearing — a teacher, text, or sutta that the argument depends on but that hasn't been searched yet. If you find one, pause and loop back to Phase 2 or 3 for that specific entity before continuing. Up to two loop-backs per run; don't spiral beyond that. If after the loop-back the source still can't be found, note the gap honestly in Open Threads.
 
 Citation forms:
@@ -495,7 +499,15 @@ If the review surfaces nothing substantive, move on without any acknowledgement 
 
 ### Phase 7 — Write the note
 
-Render the final markdown. Use this template:
+**Before writing, run this source-coverage check:**
+- Is every position from the perspective map represented by at least one block-quoted canon passage?
+- Are all pertinent canon hits in the Canon Evidence section — not a curated sample?
+- Have I searched Calibre for every plausible tag cluster, not just the first match?
+- Have I pulled transcripts for the most relevant Dhamma talks, not just noted the video titles?
+- Have I fetched and read the most promising web sources, not just linked to search results?
+- Is the draft approaching ~12 pages (~3,500 words)? If not, the answer is almost always: I have not surfaced enough sources.
+
+Render the final markdown. Use this template as a structural guide — expand every section to the depth the evidence warrants:
 
 ```markdown
 ---
@@ -695,8 +707,12 @@ vault search next time.
 
 ## Style notes
 
+- **The note's primary job is to surface sources.** The user wants a research map they can follow themselves — every relevant canon passage, every library book, every credible web source, every Dhamma talk. The Findings section orients them; the Evidence sections are the point. A note with thin evidence and expansive analysis has failed. A note with comprehensive evidence and concise analysis has succeeded.
+- **"Don't pad" means:** don't add summary paragraphs the user can derive from reading the evidence themselves. It does **not** mean "keep it short." It means every line must earn its place — either as a direct quote, a citation, or a sentence that cannot be inferred from the sources alone.
+- **Direct quotes over paraphrase.** When you have canon text, quote it in full with the blockquote format (Rule P1). Paraphrasing is a fallback for when you cannot retrieve the text — not the default. If you found 15 relevant canon hits, all 15 go in the Canon Evidence section.
+- **Target depth: ~12 pages (~3,500 words), measured by source coverage.** This is the length at which the user has reported finding the notes most useful. Reach it by surfacing more sources, not by writing more prose per source. If a draft is short, the right fix is: did I search for all relevant canon passages? did I exhaust the Calibre library? did I pull transcripts from the most relevant Dhamma talks? — not: did I write enough sentences about each position?
+- **Template is structure, not length.** The note template shows section headings and citation formats. It is not a short form to fill in one pass. The Evidence sections in particular should be as long as the sources warrant.
 - Quote Pāḷi in IAST as it appears in the canon db (don't transliterate).
-- Don't pad with summaries the user can derive themselves. Findings should be specific, with quotes.
 - Open Threads is for genuine open questions, not "more research could be done". Be honest.
 - The note is written for a reader — typically the user, weeks later — who wants information and sources. Not a workflow log.
 
