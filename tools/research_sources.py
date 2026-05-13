@@ -767,7 +767,8 @@ def fetch_youtube_transcript(
 def gemini_cross_check(prompt: str, timeout: int = 120) -> str:
     """Send a prompt to `gemini -p` and return the text response.
 
-    Returns an empty string on timeout or failure.
+    Returns a '# ERROR: ...' line on timeout or failure so the caller can
+    distinguish a rate-limit / quota error from a genuine empty response.
     """
     try:
         result = subprocess.run(
@@ -777,9 +778,13 @@ def gemini_cross_check(prompt: str, timeout: int = 120) -> str:
             timeout=timeout,
         )
     except subprocess.TimeoutExpired:
-        return ""
+        return "# ERROR: gemini timed out"
     if result.returncode != 0:
-        return ""
+        lines = result.stderr.strip().splitlines()
+        # Prefer the human-readable message line if present
+        msg_line = next((l.strip() for l in lines if l.strip().startswith("message:")), None)
+        reason = msg_line or (lines[-1].strip() if lines else "non-zero exit")
+        return f"# ERROR: {reason}"
     return result.stdout.strip()
 
 

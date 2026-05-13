@@ -258,8 +258,21 @@ Infer the canon scope from the question. Examples:
 - "in the Khuddaka" → `--books s05*_mul`
 - Unspecified → default to suttas mūla (helper default, `books=None`)
 
+**Pāḷi inflection rule — always truncate to the stem.** The canon text contains inflected forms (`dhammo`, `dhamme`, `dhammena`, `dhammānaṃ`, `nibbānaṃ`, `nibbānassa`, etc.), not the nominative citation form. A search for `dhamma` matches only 317 rows in MN vol1; `dhamm` (stem) matches 594. Always drop the final vowel or case ending down to the invariant stem before searching:
+
+| Citation form | Search stem |
+|---|---|
+| dhamma | `dhamm` |
+| nibbāna | `nibbān` |
+| saṃsāra | `saṃsār` |
+| vipassanā | `vipassan` |
+| paṭiccasamuppāda | `paṭiccasamuppād` |
+| khandha | `khandh` |
+
+When in doubt, drop one more character than you think you need — substring match means no false positives from truncating too far, only more hits.
+
 ```bash
-uv run tools/research_sources.py search-canon "<Pāḷi term>" --books "s*_mul" --lang pali --limit 20
+uv run tools/research_sources.py search-canon "<Pāḷi stem>" --books "s*_mul" --lang pali --limit 20
 # Also try English if the user used English terms:
 uv run tools/research_sources.py search-canon "<English term>" --books "s*_mul" --lang english --limit 20
 ```
@@ -293,6 +306,27 @@ For each hit you'll cite, run `resolve-citation` with that hit's `book_code` and
 ```bash
 uv run tools/research_sources.py resolve-citation s0201m_mul 23
 ```
+
+**Parallel argument structures — pull the whole range.** Many suttas run the same argument across multiple parallel blocks (e.g. MN60's five rebirth-wager positions, AN 4.170's four paths, the five-aggregate formulae). Keyword search returns only the blocks containing your keyword — typically 1–2 of 5–10. When hits show a repeating formula (`''Tatra, gahapatayo…`, `''Kathañca…`, `''Idha bhikkhave…`), the other blocks carry the same structure with different terms and will be missed. Fix: find the `id` of the first hit and the `id` of the next sutta subhead, then pull everything in between:
+
+```bash
+CANON_DB=$(eval echo $(grep VICAYA_CANON_DB /home/bodhirasa/MyFiles/3_Active/vicaya/.env | cut -d= -f2-))
+sqlite3 "$CANON_DB" \
+  "SELECT id, paranum, pali_text, english_translation FROM <table> WHERE id BETWEEN <start_id> AND <end_id>;"
+```
+
+**When a search hit has empty `paranum`** — this is normal for subhead, gatha, and continuation rows within a paragraph (only the first row of each paragraph carries `paranum`). To find the owning sutta, query by `id`:
+
+```bash
+CANON_DB=$(eval echo $(grep VICAYA_CANON_DB /home/bodhirasa/MyFiles/3_Active/vicaya/.env | cut -d= -f2-))
+# Find the nearest preceding paranum for a hit at row <id>:
+sqlite3 "$CANON_DB" \
+  "SELECT paranum FROM <table> WHERE id < <hit_id> AND paranum != '' ORDER BY id DESC LIMIT 1;"
+# Then resolve it:
+uv run tools/research_sources.py resolve-citation <table> <paranum>
+```
+
+If the hit is a `subhead` rend (the row introduces the next sutta), prefer looking forward — the following non-empty `paranum` is the sutta it names. If it is a continuation `bodytext` or `gatha`, look backward — the preceding non-empty `paranum` owns it.
 
 **Quote fully, not representatively.** Pull up to 20 of the most pertinent paragraphs and plan to use all of them in the Canon Evidence section — not just a curated sample. "Genuinely relevant" means relevant to at least one position in the perspective map; it does not mean "I'll pick the 2–3 best." If you retrieved 15 hits and your final note cites 3, you have discarded evidence without cause.
 
@@ -429,6 +463,11 @@ Use `WebSearch` (and `WebFetch` to read the most promising results). Use as many
 - Access to Insight (accesstoinsight.org) — older but solid
 - Academic journals and respected scholars
 - Avoid: blog spam, AI-generated content farms, low-quality summaries
+
+**SuttaCentral blocks WebFetch.** The site requires JavaScript rendering — `WebFetch` returns only an empty JS shell, never sutta content. Use these alternatives instead:
+- Thanissaro translations: `dhammatalks.org/suttas/` (e.g. `dhammatalks.org/suttas/mn/mn60.html`)
+- Older Thanissaro + other translators: `accesstoinsight.org/tipitaka/`
+- When no web mirror is available, quote directly from the canon DB using `search-canon` + `resolve-citation`.
 
 ### Phase 4b — YouTube search
 
@@ -697,8 +736,13 @@ Only edits to `SKILL.md` or `tools/research_sources.py`. One line each, prefixed
 - **Helper raises `FileNotFoundError`**: a path is wrong — tell the user, don't fudge.
 - **Canon search returns 0 hits**: try lang="any" and/or broader book scope before giving up.
 - **Calibre returns 0 hits**: try fewer/looser tags. The user can always specify a tag for next time.
-- **Gemini returns empty string**: timeout or network — note in the Cross-Check section as "(Gemini unavailable)" and continue.
+- **Gemini returns a `# ERROR:` line**: the helper now surfaces the failure reason instead of silently returning empty. Common causes: `TerminalQuotaError` (rate limit hit — the message includes the reset time; do not retry, just skip the cross-check and continue), timeout (prompt too large — not worth retrying in the same run). In either case, omit the cross-check section from the note and move on.
 - **Obsidian create fails**: print the rendered markdown to the terminal so the user can save it manually.
+- **PDF URL — WebFetch returns garbled or empty content**: WebFetch cannot decode PDF binary. Instead, save the file to a temp path and extract with `pdftotext`:
+  ```bash
+  curl -sL "<url>" -o /tmp/source.pdf && pdftotext /tmp/source.pdf -
+  ```
+  `pdftotext` is at `/usr/bin/pdftotext` (Poppler 24.02) and handles Unicode including Pāḷi diacritics. If the PDF is password-protected or corrupt, `pdftotext` will exit non-zero — note the gap and move on. No other PDF extraction tool is reliably available on this system.
 
 ## When Obsidian isn't running
 
