@@ -628,7 +628,7 @@ canon_refs:
   - <human_ref>
   - ...
 library_refs:
-  - <book_id>: <title> — <author>
+  - "<book_id>: <title> — <author>"
 web_refs:
   - <url>
 ---
@@ -720,23 +720,37 @@ Copy it exactly. Common hallucination patterns to avoid:
 - DN22 Mahāsatipaṭṭhānasuttaṃ para 374
 ```
 
-**Rule F3 — `web_refs` URL and annotation must refer to the same sutta/text.**
+**Rule F3 — `web_refs` entries must be bare URLs only — no annotations.**
 
-Write only the URL and the retrieval date. If you add an annotation, verify it matches
-the URL. A URL pointing to `dn/dn.22.0.than.html` is DN22, *not* MN118:
+Obsidian's property renderer parses these as URLs. Any trailing text (` — retrieved …`,
+sutta names, descriptions) breaks the URL type and shows the property as red/broken.
+Put retrieval dates and annotations in the Web Evidence section body, not here.
 
 ```yaml
-# WRONG — URL is DN22 but annotation says MN118
-- https://accesstoinsight.org/tipitaka/dn/dn.22.0.than.html (MN118 ...) — retrieved 2026-05-12
-
-# CORRECT
+# WRONG — trailing annotation breaks Obsidian's URL property type
 - https://accesstoinsight.org/tipitaka/dn/dn.22.0.than.html — retrieved 2026-05-12
+
+# CORRECT — bare URL only
+- https://accesstoinsight.org/tipitaka/dn/dn.22.0.than.html
 ```
 
-**Rule F4 — `library_refs` use the integer `book_id` from Calibre, not a made-up number.**
+**Rule F4 — `library_refs` entries must be quoted strings, not bare mappings.**
 
-Format: `<book_id>: <title> — <author>`. The `book_id` comes from the `CalibreHit.book_id`
-field. Never invent an ID.
+Obsidian's property renderer cannot display nested YAML objects. A bare `- 223: Title`
+is a YAML mapping (key `223`, value `Title`) — Obsidian shows it as a red broken
+property. Wrap the whole entry in double quotes so it is a plain string:
+
+```yaml
+# WRONG — YAML mapping, renders red/broken in Obsidian
+library_refs:
+  - 223: On Meditation — Ajahn Chah
+
+# CORRECT — quoted string, renders cleanly
+library_refs:
+  - "223: On Meditation — Ajahn Chah"
+```
+
+The `book_id` must come from `CalibreHit.book_id` — never invent an ID.
 
 **Rule F5 — `agent` field and footer line: self-identify accurately.**
 
@@ -774,10 +788,10 @@ canon_refs:
   - MN118 Ānāpānasatisuttaṃ para 977
   - SN54.1 Ekadhammosuttaṃ para 1
 library_refs:
-  - 223: On Meditation - Instructions from Talks by Ajaan Chah — Ajahn Chah
-  - 1683: Buddhist Meditation and Depth Psychology — Douglas M. Burns
+  - "223: On Meditation - Instructions from Talks by Ajaan Chah — Ajahn Chah"
+  - "1683: Buddhist Meditation and Depth Psychology — Douglas M. Burns"
 web_refs:
-  - https://accesstoinsight.org/tipitaka/mn/mn.118.than.html — retrieved 2026-05-12
+  - https://accesstoinsight.org/tipitaka/mn/mn.118.than.html
 ---
 ```
 
