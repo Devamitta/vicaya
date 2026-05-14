@@ -16,6 +16,10 @@ wheels/
 data/youtube_cache/*
 !data/youtube_cache/.gitkeep
 
+# Research scratch files — per-run working notes, not committed.
+data/scratch/*
+!data/scratch/.gitkeep
+
 # Kamma run logs — machine-specific operational data
 kamma/runs/
 kamma/setup_state.json

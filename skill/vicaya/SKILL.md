@@ -102,6 +102,48 @@ dpd_book_code}`. Empty list on no match. The embedded book-code map below is
 still the primary reference for picking `--books` patterns; `lookup-book` is
 for one-off translations during a run.
 
+## Research scratchpad
+
+Context compaction can erase findings mid-run. Guard against it by writing
+research results to disk after each phase.
+
+**At the start of every run**, create the scratch file inside the repo's
+`data/scratch/` folder (gitignored, so it persists across reboots and is
+never committed):
+
+```bash
+SCRATCH="<repo-root>/data/scratch/$(date +%Y%m%d)_<slug>.md"
+echo "# Vicaya scratch — $(date +%Y-%m-%d)\nQuestion: <question>" > "$SCRATCH"
+```
+
+Use the same slug you'll use for the vault note. Keep `$SCRATCH` in your
+working context so subsequent phases can append to it.
+
+**After each of Phases 1–4b**, append a summary block:
+
+```markdown
+## Phase N — <name>
+- Queries: <list>
+- Hits: <human refs or titles, one per line>
+- Perspective map: <positions, Phase 1 only>
+- Errors: <any tool failures>
+```
+
+**At the start of Phase 5**, read the file back before drafting:
+
+```bash
+cat "$SCRATCH"
+```
+
+This is the compaction rescue step — even if your context was compressed,
+the full list of what was found is in that file.
+
+**After Phase 7** (vault note written), leave the scratch file in place. It accumulates in `data/scratch/` as a post-mortem record and analysis input — gitignored, never committed.
+
+If the file is missing when Phase 5 starts, proceed from whatever is in
+your context — do not abort. The scratch file is a safety net, not a
+prerequisite.
+
 ## The seven phases
 
 Run these in order. Print a one-line status update before each phase so the user can follow along in their terminal.
@@ -119,6 +161,8 @@ Pull up to 4 search variations (Pāḷi term, English gloss, related concept). S
 **Perspective map.** Before moving to Phase 2, explicitly name the 2–5 competing positions or schools of thought the question touches. Examples: "Theravāda commentarial vs. Ñāṇavīra structural", "cessationist vs. realist readings of Nibbāna", "three-lives vs. momentary paṭiccasamuppāda". If the question is purely factual with no interpretive dispute, skip this step. Otherwise, tag subsequent evidence — canon hits, library sources, web sources — as supporting a named position. This ensures the final note covers all significant views, not just the first position the search surfaces.
 
 **Counter-perspective search.** For each position named in the perspective map, actively search for sources that support it — don't rely on the first position the keyword searches happen to surface. If a web or canon search returns only one school's voice, run a second search scoped to a known proponent of the opposing view (e.g. `authors:Analayo` for early-Buddhist readings, a specific scholar for the academic critique). Evidence gaps for any named position belong in Critical Gaps, not silent omission.
+
+→ **Scratch** — append Phase 1 results: vault hit list, perspective map positions, counter-perspective targets.
 
 ### Phase 2 — Canon search
 
@@ -332,6 +376,8 @@ If the hit is a `subhead` rend (the row introduces the next sutta), prefer looki
 
 **Paragraph numbers are book-global.** The `paranum` in a `CanonHit` is a continuous index across the entire book file, not local to the sutta. Always run `resolve-citation` to confirm which sutta a paragraph belongs to before citing it (see Hard Rule 9).
 
+→ **Scratch** — append Phase 2 results: queries run, all human refs resolved, any empty-result gaps.
+
 ### Phase 3 — Library search
 
 The user's Calibre library is whole-library non-fiction (Buddhism, religion, psychology). The tag vocabulary is in `<repo>/data/calibre_tags.csv` (~2k tags).
@@ -456,6 +502,8 @@ search returning zero. Walk down these rungs in order:
 If all five rungs return nothing, the topic is genuinely absent from the
 library — note it as a gap in *Open Threads*, do not invent a citation.
 
+→ **Scratch** — append Phase 3 results: Calibre hits (book_id, title, author), any FTS snippets, gaps noted.
+
 ### Phase 4a — Web search
 
 Use `WebSearch` (and `WebFetch` to read the most promising results). Use as many relevant sources as you can find, up to 20. Prefer:
@@ -468,6 +516,8 @@ Use `WebSearch` (and `WebFetch` to read the most promising results). Use as many
 - Thanissaro translations: `dhammatalks.org/suttas/` (e.g. `dhammatalks.org/suttas/mn/mn60.html`)
 - Older Thanissaro + other translators: `accesstoinsight.org/tipitaka/`
 - When no web mirror is available, quote directly from the canon DB using `search-canon` + `resolve-citation`.
+
+→ **Scratch** — append Phase 4a results: URLs fetched, key quotes retrieved, any blocked/failed fetches.
 
 ### Phase 4b — YouTube search
 
@@ -489,7 +539,11 @@ Transcripts are cached under `data/youtube_cache/<video_id>.json` — subsequent
 
 To locate the relevant moment in a long talk, scan `segments` for keywords (English glosses or the auto-caption form of the Pāḷi term) and cite the `start` timestamp.
 
+→ **Scratch** — append Phase 4b results: video IDs fetched, transcript summaries (is_auto flag, key timestamps), any tier-rejected channels.
+
 ### Phase 5 — Synthesis
+
+**Read the scratch file before drafting.** Run `cat "$SCRATCH"` to recover the full list of findings from all prior phases. This is the compaction rescue step — if your context was compressed, everything you found is still in that file.
 
 Draft the answer in your working notes. Cite as you go — never make a claim without a reference.
 
@@ -499,6 +553,8 @@ Draft the answer in your working notes. Cite as you go — never make a claim wi
 
 **Use all relevant evidence.** If you collected 15 canon hits and 6 library sources, all of them go in the note — not a representative sample. Drop a hit only if it is a verbatim duplicate of one already quoted. Paraphrase only when the full text is unavailable. Prefer blockquotes (Rule P1) over inline summaries everywhere.
 
+**Track every rejection.** Each time you decide not to use a source — whether a canon paragraph, a Calibre book, a web page, or a YouTube video — note it immediately with a one-line reason. These go into `## Sources Investigated, Not Used` in the final note. Common reasons: duplicate, metadata-only (no content to quote), URL blocked, auto-captions too degraded to paraphrase, out of scope, wrong sutta. Do not discard sources silently.
+
 **Recursive citation check.** As you draft, watch for sources that are load-bearing — a teacher, text, or sutta that the argument depends on but that hasn't been searched yet. If you find one, pause and loop back to Phase 2 or 3 for that specific entity before continuing. Up to two loop-backs per run; don't spiral beyond that. If after the loop-back the source still can't be found, note the gap honestly in Open Threads.
 
 Citation forms:
@@ -507,6 +563,16 @@ Citation forms:
 - Library: `[[<Book Title>]] — <Author>: "<snippet>"` (omit snippet if metadata-only)
 - Web: `[<page title>](<url>) — retrieved YYYY-MM-DD`
 - Vault: `[[<Existing Note Title>]]`
+
+**Inline footnote markers.** As you write the Findings prose, place a named footnote superscript immediately after any claim that rests on a specific source. Use these ID conventions:
+
+| Source type | ID form | Example |
+|---|---|---|
+| Canon | `[^<booktable>-<para>]` | `[^s0201m-70]` |
+| Library | `[^calibre-<book_id>]` | `[^calibre-223]` |
+| Web / YouTube | `[^web-<n>]` | `[^web-1]`, `[^web-2]` |
+
+The footnote definitions go at the bottom of the note (see Phase 7 template). Keep definitions short — they are locators, not evidence repeats. The full Pāḷi/English blockquotes belong in the Evidence sections.
 
 ### Phase 6 — Second-pass review (cross-check)
 
@@ -597,6 +663,14 @@ web_refs:
 - [[Existing vault note 1]]
 - [[Existing vault note 2]]
 
+## Sources Investigated, Not Used
+| Source | Type | Reason not used |
+|--------|------|-----------------|
+| MN60 para 12 | Canon | Duplicate of para 97 — same argument, verbatim repetition |
+| [[Some Book Title]] — Author | Library | Metadata hit only; no FTS snippet; title too generic to cite without content |
+| https://example.com/article | Web | Blocked / JS-only; content not retrievable |
+| Channel — Talk Title (video_id) | YouTube | Auto-captions only; Pāḷi terms mangled beyond reliable paraphrase |
+
 ## Critical Gaps
 - <weakest claim in this note and what source would close it>
 - <named perspective from the perspective map that lacked sufficient evidence>
@@ -604,6 +678,10 @@ web_refs:
 
 ---
 *Researched by <Model family + version> on YYYY-MM-DD.*
+
+[^s0201m-70]: MN9 Sammādiṭṭhisuttaṃ para 70 — db: s0201m_mul, para 70
+[^calibre-223]: [[On Meditation]] — Ajahn Chah (Calibre #223)
+[^web-1]: [Ānāpānasati Sutta](https://www.dhammatalks.org/suttas/mn/mn118.html) — retrieved YYYY-MM-DD
 ```
 
 ### Frontmatter rules (agents get these wrong — read carefully)
@@ -839,6 +917,27 @@ Blockquote form (used when the canon text itself is the evidence):
 > food, gross or subtle; second, contact; third, mental volition; fourth,
 > consciousness.
 ```
+
+### Footnote definitions (vault note only)
+
+Footnote definitions appear at the very bottom of the note, after the final `---`
+and the italic footer line. They are **locators** — short enough to let the reader
+jump straight to the source. They are **not** evidence repeats; do not copy the
+full Pāḷi/English blockquote from the Evidence section into the footnote.
+
+Format rules:
+
+- **Canon:** `[^<booktable>-<para>]: <human_ref> — db: <table>, para <paranum>`
+  Example: `[^s0201m-70]: MN9 Sammādiṭṭhisuttaṃ para 70 — db: s0201m_mul, para 70`
+- **Library:** `[^calibre-<id>]: [[<Title>]] — <Author> (Calibre #<id>)`
+  Example: `[^calibre-223]: [[On Meditation]] — Ajahn Chah (Calibre #223)`
+- **Web:** `[^web-<n>]: [<page title>](<url>) — retrieved YYYY-MM-DD`
+  Example: `[^web-1]: [Ānāpānasati Sutta](https://www.dhammatalks.org/suttas/mn/mn118.html) — retrieved 2026-05-14`
+- **YouTube:** `[^web-<n>]: [<Channel> — <Title>](https://youtu.be/<id>?t=<sec>) — retrieved YYYY-MM-DD`
+
+Only define footnotes that were actually cited inline in the Findings prose. Do not
+list every Evidence section entry as a footnote — only the claims in Findings prose
+that carry a superscript marker.
 
 ## Self-improvement loop (mandatory)
 
