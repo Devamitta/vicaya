@@ -148,9 +148,237 @@ prerequisite.
 
 Run these in order. Print a one-line status update before each phase so the user can follow along in their terminal.
 
+## Investigation angles
+
+A standing checklist of evidentiary lenses. For every research question, walk this
+list once at the start of Phase 1 and decide per-angle whether it applies. **Applicable
+angles must be searched** in Phases 2–4; **non-applicable angles are logged with a
+one-line reason** in the scratchpad and, later, in the vault note's `## Angles Not
+Pursued` table.
+
+This is distinct from the *perspective map*. The perspective map names competing
+**positions within a topic** (e.g. cessationist vs. realist Nibbāna). The angle list
+names **evidentiary lenses across sources** (e.g. "what does the Abhidhamma say",
+"what does cognitive science say"). The two complement each other: a position from
+the perspective map may be supported or critiqued from several angles.
+
+**Triage rule.** Apply liberally. If an angle could plausibly contribute *any*
+evidence — corroborating, contradicting, or contextualising — mark it applicable.
+Default to "applicable" when uncertain; the cost of one extra search is small,
+the cost of a silent blind spot is large. Only mark "not applicable" when there
+is a clear reason (e.g. archaeology has nothing to say about an Abhidhamma
+classification question; cognitive science has little purchase on a Vinaya
+procedure question).
+
+Record the triage in the scratchpad before moving to Phase 2:
+
+```markdown
+## Angle triage
+- Early Pāḷi (dhamma + vinaya): applicable — primary canon search
+- EBT āgama parallels: applicable — SuttaCentral parallels + Anālayo
+- Abhidhamma: not applicable — question is narratival, not analytical
+- ...
+```
+
+### Textual layers
+
+**1. Early Pāḷi — dhamma and vinaya.**
+*Applies to:* almost every question on Buddhist doctrine, practice, or monastic life.
+*Where to search:* canon DB sutta mūla (`s*_mul`) and Vinaya mūla (`vin*_mul`).
+For Vinaya-relevant questions explicitly include `vin*_mul`. Use the Pāḷi-stem
+truncation rule when searching Pāḷi.
+*Satisfying hit:* a verbatim Pāḷi + English block-quote with a `resolve-citation`
+human reference (e.g. *MN60 Apaṇṇakasuttaṃ para 97*).
+
+**2. EBT āgama parallels — Chinese Āgamas, Sanskrit fragments, Tibetan parallels.**
+*Applies to:* any sutta-level question where parallel recensions exist (most
+Nikāya material has at least partial parallels).
+*Where to search:* web — SuttaCentral parallel listings for the sutta in
+question (use SuttaCentral via a non-WebFetch path: read the parallel table from
+`accesstoinsight.org` cross-references or `dhammatalks.org`; otherwise fall
+back to documented secondary sources). Calibre `authors:Analayo` (Bhikkhu
+Anālayo's *Comparative Study of the Majjhima-Nikāya* and related work is the
+standard reference). Calibre tags `Chinese Canon (Tripitaka)`, `Sanskrit Canon`,
+`Tibetan Canon`, `Comparative Studies`. Corporate author `84000` for Tibetan
+canon parallels.
+*Satisfying hit:* a named parallel (e.g. MĀ 16 for MN 60) with a citation to
+Anālayo's comparative analysis or to a sectarian recension; an explicit note
+when *no* parallel exists.
+
+**3. Abhidhamma.**
+*Applies to:* analytical questions — questions about mental factors, paths,
+moments of consciousness, classifications of phenomena, the structure of
+liberation, kamma mechanics.
+*Where to search:* canon DB `abh*_mul` (mūla) and `abh*_att` (commentary).
+Visuddhimagga (`e0101n_mul`, `e0102n_mul`) often functions as the practical
+Abhidhamma reference. Calibre tag `Abhidhamma`; authors Bhikkhu Bodhi
+(*Comprehensive Manual of Abhidhamma*), Nyanaponika Thera, Y. Karunadasa.
+*Satisfying hit:* a canonical Abhidhamma classification or Visuddhimagga
+treatment, cited with a paragraph or page reference.
+
+**4. Late Khuddaka Nikāya — exegetical / proto-commentarial layer.**
+*Applies to:* questions where the early layer is terse and the late-canonical
+exegesis fills it out — meditation taxonomy, definitions of technical terms,
+hermeneutical methods.
+*Where to search:* canon DB `s05*_mul`, especially Niddesa (`s0515m_mul`,
+`s0516m_mul`), Paṭisambhidāmagga (`s0517m_mul`), Nettippakaraṇa
+(`s0519m_mul`), Peṭakopadesa (`s0520m_nrf`), Milindapañha (`s0518m_nrf`).
+*Satisfying hit:* a definition, taxonomy, or hermeneutical principle from one
+of these texts with a `resolve-citation` reference.
+
+**5. Commentaries and ṭīkā — Theravāda exegetical tradition.**
+*Applies to:* nearly every doctrinal question — the commentarial reading is one
+of the major positions on almost any topic, and ṭīkā often refine or contest
+it.
+*Where to search:* canon DB `*_att` (aṭṭhakathā) and `*_tik` (ṭīkā). Mūla +
+commentary together: `--books "s02*_mul" "s02*_att"`. Sub-commentaries:
+`--books "*_tik"`. Visuddhimagga (`e0101n_mul`, `e0102n_mul`) is the great
+commentarial summa. Calibre tags `Commentary`, `Atthakatha`.
+*Satisfying hit:* a Buddhaghosa, Dhammapāla, or ṭīkā gloss cited with
+paragraph reference; explicit note when the commentary diverges from a
+plausible reading of the mūla.
+
+### Other schools of Buddhism
+
+**6. Mahāyāna / Vajrayāna / Yogācāra.**
+*Applies to:* any question where a comparative-school reading enriches the
+analysis (philosophy of mind, emptiness, bodhicitta, tantric practice,
+buddha-nature, ālaya-vijñāna, two truths, etc.).
+*Where to search:* Calibre tags `Mahayana`, `Mahayana Sutra`, `Madhyamaka`,
+`Tibetan Buddhism`, `Zen Buddhism`, `Vajrayana` (verify against
+`data/calibre_tags.csv`). Corporate author `84000` (the Tibetan translation
+project, 36 books). Tag `Yogacara` may not exist verbatim — consult the csv,
+fall back to free-text search `comments:yogacara` or
+`comments:"consciousness-only"`. Web: 84000.co, Lotsawa House, Berzin Archives.
+*Satisfying hit:* a school-specific position cited to a primary text or a
+recognised secondary source; explicit comparison to the Theravāda reading
+where the question warrants it.
+
+### Comparative religion
+
+**7. Sanskrit texts, Hindu and other Indian religions.**
+*Applies to:* questions where Brahmanical, Jain, or Ājīvika context illuminates
+the Buddhist position — meditation terminology with Upaniṣadic precedent,
+debates the suttas engage (e.g. ātman, fire-imagery, varṇa), shared lexicon
+(*dhamma*, *karma*, *yoga*, *samādhi*), comparative cosmology.
+*Where to search:* Calibre tag `Sanskrit Text`; verify against
+`data/calibre_tags.csv` whether `Hinduism`, `Jainism`, `Vedic`, `Upanishads`,
+`Indology`, `Indian Religion` exist as tags — use what is present, free-text
+otherwise. Authors: Patrick Olivelle, Johannes Bronkhorst, Richard Gombrich
+(esp. *How Buddhism Began*), Karel Werner. Web: GRETIL (Sanskrit etext archive),
+*Encyclopædia of Indian Religions*.
+*Satisfying hit:* a Sanskrit / Vedic / Jain passage or scholar's analysis
+showing the term, debate, or image at issue; explicit note when the Buddhist
+position responds to or departs from the precedent.
+
+**8. Other religions — Christianity, Islam, Daoism, Confucianism, etc.**
+*Applies to:* questions where cross-religious comparison is genuinely
+illuminating — contemplative practice, mystical phenomenology, ethics,
+soteriology. Apply selectively; do not force.
+*Where to search:* Calibre tags `Comparative Religion`, `Comparative Studies`,
+`Christianity`, `Mysticism`, `Daoism`, `Sufism` (verify against the csv).
+Authors: Thomas Merton, Aldous Huxley, Bernadette Roberts, Daniel Ingram
+(cross-traditional contemplative writing). Web: standard comparative religion
+journals.
+*Satisfying hit:* a structurally analogous claim from another tradition with
+proper attribution; explicit note on where the analogy breaks down.
+
+### Modern voices
+
+**9. Modern teachers — living and recent (20th–21st c.) lineage holders and lay teachers.**
+*Applies to:* every practical or applied question; most doctrinal questions
+benefit from modern framing.
+*Where to search:* Calibre — Thai Forest (`Ajahn Chah`, `Ajahn Brahmavamso`,
+`Thanissaro Bhikkhu`, `Ajahn Sumedho`, `Ajahn Amaro`), Burmese (`Mahasi
+Sayadaw`, `Pa-Auk Sayadaw`, `Sayadaw U Tejaniya`), Sri Lankan (`Nyanaponika
+Thera`, `Bhikkhu Bodhi`, `Bhikkhu Anālayo`), Goenka tradition (`Vipassana
+Research Institute`, 249 books). Tags `dhamma talk` (434 books), `Thai Forest
+Tradition`, `Sri Lankan Tradition`, `Myanmar Tradition`. YouTube via
+`search-youtube` — the channel allowlist already prioritises trusted modern
+teachers.
+*Satisfying hit:* a teaching from a recognised modern teacher cited with book
++ page or YouTube video + timestamp; ideally cite teachers from at least two
+distinct lineages so the modern voice is not monochromatic.
+
+### Academic disciplines
+
+**10. Sociology — Buddhism as social formation, monasticism, lay-monastic relations, sect dynamics.**
+*Applies to:* questions about institutional structure, monastic economics,
+gender, ethnic Buddhism, modern Buddhism in society, conversion, reform
+movements.
+*Where to search:* Calibre — consult `data/calibre_tags.csv` for `Sociology`,
+`Anthropology`, `Religious Studies`, `Buddhist Studies` clusters. Authors:
+Melford Spiro, Stanley Tambiah, Donald Lopez, David McMahan (*The Making of
+Buddhist Modernism*), Heinz Bechert. Web: *Journal of Buddhist Ethics*,
+*Contemporary Buddhism*.
+*Satisfying hit:* an empirical or theoretical sociological claim cited to a
+named scholar.
+
+**11. Psychology — clinical, depth, contemplative.**
+*Applies to:* questions about mind, defilements, meditation effects,
+suffering, healing, identity, the relation between *citta* / *mano* /
+*viññāṇa* and modern constructs.
+*Where to search:* Calibre tag `Psychology` (668 books, well-populated), plus
+`Buddhist Psychology` (verify in csv), `Phenomenology`. Authors: Jack Engler,
+John Welwood, Mark Epstein, Daniel Goleman, Rick Hanson, Tara Brach, Bhikkhu
+Anālayo (*Satipaṭṭhāna* + meditation studies), Y. Karunadasa.
+*Satisfying hit:* a psychological framing or finding paired with the Buddhist
+term it engages, cited to a book or paper.
+
+**12. Philosophy — analytic, phenomenological, comparative, history of philosophy.**
+*Applies to:* questions about ontology, epistemology, philosophy of mind,
+ethics, time, causation, personal identity, free will, language.
+*Where to search:* Calibre tag `Philosophy` (631 books). Authors: Mark Siderits,
+Jay Garfield, Evan Thompson, Jonardon Ganeri, Steven Collins (*Selfless
+Persons*, *Nirvana and Other Buddhist Felicities*), Charles Goodman, Owen
+Flanagan. Series: Routledge philosophy of religion, OUP. Web: *Stanford
+Encyclopedia of Philosophy* entries on Buddhism, *Philosophy East and West*.
+*Satisfying hit:* a philosophical analysis or argument cited to a named
+philosopher.
+
+**13. Cognitive science — neuroscience, contemplative science, embodied/enactive cognition.**
+*Applies to:* meditation, attention, awareness, perception, default-mode
+network, embodied self, predictive processing, contemplative training studies.
+*Where to search:* Calibre tags `Cognitive Science`, `Neuroscience`,
+`Consciousness`. Authors: Francisco Varela, Evan Thompson (*Mind in Life*,
+*Waking, Dreaming, Being*), Antoine Lutz, Richard Davidson, Wendy Hasenkamp,
+Cliff Saron, Judson Brewer. Web: *Mind & Life Institute*, *Frontiers in Human
+Neuroscience*.
+*Satisfying hit:* a cognitive-science result or theoretical framework paired
+with the Buddhist construct it engages, cited.
+
+**14. Archaeology — material culture, sites, inscriptions, art history.**
+*Applies to:* questions about early Buddhist history, Aśokan period, monastic
+architecture, relics, the historical Buddha, regional spread, dating debates.
+*Where to search:* Calibre — consult `data/calibre_tags.csv` for `Archaeology`,
+`Art History`, `Inscriptions`, `Material Culture`. Authors: Gregory Schopen
+(esp. *Bones, Stones, and Buddhist Monks*), Lars Fogelin, Robert DeCaroli, Akira
+Hirakawa (early Mahāyāna archaeology). Web: ASI publications, *South Asian
+Studies*.
+*Satisfying hit:* an inscription, site report, or material-culture finding
+cited to a named scholar or archaeological report.
+
+**15. History — origins, transmission, sectarian development, regional histories, modern history.**
+*Applies to:* questions about sectarian splits, councils, transmission to Sri
+Lanka / China / Tibet / SE Asia, modern reform movements, the historical
+Buddha, dating of texts.
+*Where to search:* Calibre tag `History` (808 books, well-populated). Authors:
+Étienne Lamotte (*History of Indian Buddhism*), Erich Frauwallner, Hirakawa
+Akira, Andrew Skilton (*A Concise History of Buddhism*), Richard Gombrich,
+Heinz Bechert, Donald Lopez. Web: *Journal of the International Association of
+Buddhist Studies*.
+*Satisfying hit:* a historical claim with a date, place, and scholarly source.
+
 ### Phase 1 — Vault context
 
-Search the existing vault for prior notes related to the topic. The user has been writing in this vault for years; new research must build on, not duplicate, what's there.
+**Angle triage first.** Before anything else in this phase, walk the standing
+checklist in **Investigation angles** above and decide per-angle whether it
+applies to this question. Record the triage in the scratchpad. Applicable
+angles dictate the search scope of Phases 2–4; non-applicable angles will be
+logged in the vault note's `## Angles Not Pursued` table with a one-line
+reason.
+
+Then search the existing vault for prior notes related to the topic. The user has been writing in this vault for years; new research must build on, not duplicate, what's there.
 
 ```bash
 uv run tools/research_sources.py search-vault "<key terms>" --limit 20
@@ -162,7 +390,7 @@ Pull up to 4 search variations (Pāḷi term, English gloss, related concept). S
 
 **Counter-perspective search.** For each position named in the perspective map, actively search for sources that support it — don't rely on the first position the keyword searches happen to surface. If a web or canon search returns only one school's voice, run a second search scoped to a known proponent of the opposing view (e.g. `authors:Analayo` for early-Buddhist readings, a specific scholar for the academic critique). Evidence gaps for any named position belong in Critical Gaps, not silent omission.
 
-→ **Scratch** — append Phase 1 results: vault hit list, perspective map positions, counter-perspective targets.
+→ **Scratch** — append Phase 1 results: angle triage (applicable + not-applicable with reasons), vault hit list, perspective map positions, counter-perspective targets.
 
 ### Phase 2 — Canon search
 
@@ -551,6 +779,8 @@ Draft the answer in your working notes. Cite as you go — never make a claim wi
 
 **Source completeness check before you write.** Review your perspective map from Phase 1. For every named position, ask: do I have the canon passages that establish it, a secondary source that analyses it, and a web or talk source where the user could learn more? If any position is thin on sources, loop back to Phases 2–4 before synthesising. More prose does not fix missing sources — only more searching does.
 
+**Angle coverage check.** Review the angle triage from Phase 1. For every angle marked *applicable*, ask: have I cited at least one source from that angle? If an applicable angle has zero citations, either loop back and search it, or downgrade it to *not applicable* with an honest reason for the `## Angles Not Pursued` table. Silent omission of a triaged angle is not acceptable.
+
 **Use all relevant evidence.** If you collected 15 canon hits and 6 library sources, all of them go in the note — not a representative sample. Drop a hit only if it is a verbatim duplicate of one already quoted. Paraphrase only when the full text is unavailable. Prefer blockquotes (Rule P1) over inline summaries everywhere.
 
 **Track every rejection.** Each time you decide not to use a source — whether a canon paragraph, a Calibre book, a web page, or a YouTube video — note it immediately with a one-line reason. These go into `## Sources Investigated, Not Used` in the final note. Common reasons: duplicate, metadata-only (no content to quote), URL blocked, auto-captions too degraded to paraphrase, out of scope, wrong sutta. Do not discard sources silently.
@@ -608,6 +838,7 @@ If the review surfaces nothing substantive, move on without any acknowledgement 
 
 **Before writing, run this source-coverage check:**
 - Is every position from the perspective map represented by at least one block-quoted canon passage?
+- Is every *applicable* angle from the Phase 1 triage represented by at least one citation, and is every *non-applicable* angle logged in `## Angles Not Pursued` with a one-line reason?
 - Are all pertinent canon hits in the Canon Evidence section — not a curated sample?
 - Have I searched Calibre for every plausible tag cluster, not just the first match?
 - Have I pulled transcripts for the most relevant Dhamma talks, not just noted the video titles?
@@ -670,6 +901,13 @@ web_refs:
 | [[Some Book Title]] — Author | Library | Metadata hit only; no FTS snippet; title too generic to cite without content |
 | https://example.com/article | Web | Blocked / JS-only; content not retrievable |
 | Channel — Talk Title (video_id) | YouTube | Auto-captions only; Pāḷi terms mangled beyond reliable paraphrase |
+
+## Angles Not Pursued
+| Angle | Reason not pursued |
+|-------|--------------------|
+| Archaeology | Question is purely doctrinal; no material-culture bearing |
+| Other religions | No structural analogue worth comparing on this question |
+| EBT āgama parallels | Sutta is uniquely Pāḷi; no Chinese / Sanskrit / Tibetan parallel attested |
 
 ## Critical Gaps
 - <weakest claim in this note and what source would close it>
