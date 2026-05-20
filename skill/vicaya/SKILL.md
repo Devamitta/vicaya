@@ -119,6 +119,8 @@ echo "# Vicaya scratch — $(date +%Y-%m-%d)\nQuestion: <question>" > "$SCRATCH"
 Use the same slug you'll use for the vault note. Keep `$SCRATCH` in your
 working context so subsequent phases can append to it.
 
+**⚠️ IRON RULE — a phase is not complete until its scratchpad block is written.** Do not move to the next phase until the append is done. This is the only reliable defence against compaction erasing findings mid-run.
+
 **After each of Phases 1–4b**, append a summary block:
 
 ```markdown
@@ -144,7 +146,20 @@ If the file is missing when Phase 5 starts, proceed from whatever is in
 your context — do not abort. The scratch file is a safety net, not a
 prerequisite.
 
-## The seven phases
+## Evidence tiers
+
+Every source used in the note belongs to one of four tiers. The tier determines its epistemic weight and which section heading it appears under.
+
+| Tier | Sources | Weight |
+|------|---------|--------|
+| **T1 — Root canon** | Mūla texts: suttas (`s*_mul`), Vinaya (`vin*_mul`), Abhidhamma (`abh*_mul`) | Highest. Verbatim blockquote mandatory (Rule P1). |
+| **T2 — Canonical exegesis** | Aṭṭhakathā (`*_att`), ṭīkā (`*_tik`), Visuddhimagga, late Khuddaka (Niddesa, Paṭisambhidāmagga, Nettippakaraṇa) | Authoritative within the tradition. Attribute to Buddhaghosa / Dhammapāla / the commentarial tradition — never to the Buddha. |
+| **T3 — Academic scholarship** | Peer-reviewed books, critical editions, journal articles, scholarly translations (Bhikkhu Bodhi, Bhikkhu Anālayo, Pali Text Society, etc.) | Analytical. Cite author + work. Can support doctrinal claims when T1/T2 is absent or ambiguous. |
+| **T4 — Modern teaching and popular sources** | Dhamma talks, recorded teachings, accessible books, YouTube transcripts | Supporting only. Cannot be load-bearing for doctrinal claims. Cite teacher + talk/book. |
+
+The note template uses these tiers as section headings (see Phase 7). The Devil's Advocate checklist question 5 checks that load-bearing claims rest on T1 or T2, not T4.
+
+## Research phases (Phase 0 through 7)
 
 Run these in order. Print a one-line status update before each phase so the user can follow along in their terminal.
 
@@ -368,6 +383,18 @@ Akira, Andrew Skilton (*A Concise History of Buddhism*), Richard Gombrich,
 Heinz Bechert, Donald Lopez. Web: *Journal of the International Association of
 Buddhist Studies*.
 *Satisfying hit:* a historical claim with a date, place, and scholarly source.
+
+### Phase 0 — Scope check
+
+Ask the user these five questions before doing anything else. Present them together in a single message — don't ask one at a time. Wait for the response, then carry the answers into Phase 1.
+
+1. **Textual scope** — Are you asking about the mūla (root canon), the commentarial tradition, or both? Any particular Nikāya or text?
+2. **Interpretive dispute** — Is there a specific school, teacher, or scholarly debate you want foregrounded, or should the note map the main positions neutrally?
+3. **Depth** — Full note (~3,500 words, all applicable angles) or a focused answer on one specific aspect?
+4. **Practical angle** — Do you want the note to connect the topic to practice and modern teachers, or keep it primarily textual/scholarly?
+5. **Seeds** — Any specific suttas, scholars, books, or vault notes you already know are relevant?
+
+If the question already answers most of these (e.g. `/vicaya the cessationist vs. realist readings of Nibbāna in the commentaries`) skip the questions and proceed directly to Phase 1 — don't ask for confirmation the user doesn't need.
 
 ### Phase 1 — Vault context
 
@@ -602,7 +629,7 @@ If the hit is a `subhead` rend (the row introduces the next sutta), prefer looki
 
 **Quote fully, not representatively.** Pull up to 20 of the most pertinent paragraphs and plan to use all of them in the Canon Evidence section — not just a curated sample. "Genuinely relevant" means relevant to at least one position in the perspective map; it does not mean "I'll pick the 2–3 best." If you retrieved 15 hits and your final note cites 3, you have discarded evidence without cause.
 
-**Paragraph numbers are book-global.** The `paranum` in a `CanonHit` is a continuous index across the entire book file, not local to the sutta. Always run `resolve-citation` to confirm which sutta a paragraph belongs to before citing it (see Hard Rule 9).
+**⚠️ IRON RULE — Paragraph numbers are book-global.** The `paranum` in a `CanonHit` is a continuous index across the entire book file, not local to the sutta. Always run `resolve-citation` to confirm which sutta a paragraph belongs to before citing it (see Hard Rule 9).
 
 → **Scratch** — append Phase 2 results: queries run, all human refs resolved, any empty-result gaps.
 
@@ -781,6 +808,16 @@ Draft the answer in your working notes. Cite as you go — never make a claim wi
 
 **Angle coverage check.** Review the angle triage from Phase 1. For every angle marked *applicable*, ask: have I cited at least one source from that angle? If an applicable angle has zero citations, either loop back and search it, or downgrade it to *not applicable* with an honest reason for the `## Angles Not Pursued` table. Silent omission of a triaged angle is not acceptable.
 
+**⚠️ IRON RULE — Devil's Advocate pass before drafting.** After the source and angle checks, answer each question below in the scratchpad before writing a single sentence of the Findings section. Brief answers are fine; the point is to surface problems while there is still time to fix them, not to generate prose.
+
+1. **Citation balance.** For each position in the perspective map — do I have sources that *support* it AND sources that *challenge or complicate* it? If one position is supported by 6 canon hits and another by 1, is that imbalance accurate scholarship or search bias?
+2. **Suppressed evidence.** Are there canon hits or library sources in the scratchpad that I was not planning to cite? For each: why not? If the honest answer is "it complicates my framing," the source goes in, not out.
+3. **Alternative readings.** For the most important sutta passage I plan to quote — what does the commentarial tradition say about it, and what does at least one modern scholar who disagrees with that reading say? Am I collapsing a live interpretive dispute into a single reading?
+4. **Strongest opposing voice.** What would the most credible scholar who holds the *opposing* view say is wrong with my synthesis? If I cannot name that argument, I have not understood the debate well enough to write about it.
+5. **Evidence tier of load-bearing claims.** Is the central claim of the Findings section supported by T1 (canon mūla) or T2 (commentary) evidence, or does it ultimately rest on a modern teacher's talk or a secondary source? If the latter, the Findings prose must reflect that epistemic status.
+
+Append answers to the scratchpad under `## Devil's Advocate`. Then draft.
+
 **Use all relevant evidence.** If you collected 15 canon hits and 6 library sources, all of them go in the note — not a representative sample. Drop a hit only if it is a verbatim duplicate of one already quoted. Paraphrase only when the full text is unavailable. Prefer blockquotes (Rule P1) over inline summaries everywhere.
 
 **Track every rejection.** Each time you decide not to use a source — whether a canon paragraph, a Calibre book, a web page, or a YouTube video — note it immediately with a one-line reason. These go into `## Sources Investigated, Not Used` in the final note. Common reasons: duplicate, metadata-only (no content to quote), URL blocked, auto-captions too degraded to paraphrase, out of scope, wrong sutta. Do not discard sources silently.
@@ -813,8 +850,13 @@ Write the prompt to a temp file, then pipe it in (avoids all shell quoting hazar
 ```bash
 cat > /tmp/cross_check_prompt.txt <<'EOF'
 You are reviewing a research synthesis on a Pāḷi/Buddhist question.
-Identify any factual errors, oversights, or alternative interpretations.
-Be specific.
+For each of the five areas below, respond specifically or say "no issue":
+
+1. **Perspective coverage** — Are there named positions in the synthesis that are underrepresented or mischaracterised? Are there significant schools, teachers, or scholarly voices missing from this topic entirely?
+2. **Tier integrity** — Is any claim attributed to the root canon (mūla) that actually originates in the commentarial tradition (aṭṭhakathā / ṭīkā)? Is any teacher's interpretation presented as if it were canonical?
+3. **Disputed consensus** — Is any live interpretive dispute presented as settled? Are there scholars or lineages who hold a substantially different position that the synthesis does not mention?
+4. **Factual accuracy** — Are there errors in Pāḷi terminology, sutta references, historical claims, or scholarly attributions?
+5. **General** — Any other factual errors, oversights, or alternative interpretations not captured above.
 
 Question: <the question>
 
@@ -830,7 +872,7 @@ uv run tools/research_sources.py gemini-cross-check < /tmp/cross_check_prompt.tx
 - A factual correction → verify against a primary or secondary source you can cite, then incorporate.
 - An alternative interpretation → add it as a position in the note, cited to whoever actually holds it.
 
-**Never write that the review surfaced something.** No "Gemini noted", no attribution to any AI model, no meta-commentary about how the note was produced. If you incorporate a school the user might not have asked about, that's fine — it stands on its own academic merit, cited properly.
+**⚠️ IRON RULE — Never write that the review surfaced something.** No "Gemini noted", no attribution to any AI model, no meta-commentary about how the note was produced. If you incorporate a school the user might not have asked about, that's fine — it stands on its own academic merit, cited properly.
 
 If the review surfaces nothing substantive, move on without any acknowledgement in the note.
 
@@ -839,7 +881,7 @@ If the review surfaces nothing substantive, move on without any acknowledgement 
 **Before writing, run this source-coverage check:**
 - Is every position from the perspective map represented by at least one block-quoted canon passage?
 - Is every *applicable* angle from the Phase 1 triage represented by at least one citation, and is every *non-applicable* angle logged in `## Angles Not Pursued` with a one-line reason?
-- Are all pertinent canon hits in the Canon Evidence section — not a curated sample?
+- Are all pertinent canon hits in the Canon Evidence (T1) section — not a curated sample?
 - Have I searched Calibre for every plausible tag cluster, not just the first match?
 - Have I pulled transcripts for the most relevant Dhamma talks, not just noted the video titles?
 - Have I fetched and read the most promising web sources, not just linked to search results?
@@ -872,21 +914,27 @@ web_refs:
 ## Findings
 <the synthesised answer, with inline citations>
 
-## Canon Evidence
+## Canon Evidence (T1)
 - **MN60 Apaṇṇakasuttaṃ para 97**
   - Pāḷi: "..."
   - English: "..."
 - ...
 
-## Library Evidence
+## Commentary Evidence (T2)
+- **<aṭṭhakathā or ṭīkā ref>** — Buddhaghosa / Dhammapāla
+  - Pāḷi: "..."
+  - English: "..."
+- ...
+
+## Scholarly Sources (T3)
 - [[Book Title]] — Author Name
   - "snippet" (if FTS was on)
 
-## Web Evidence
+## Web Evidence (T3)
 - [Source title](url) — retrieved YYYY-MM-DD
   - <brief gloss of what this source contributes>
 
-## YouTube Evidence
+## Teacher Talks and Accessible Sources (T4)
 - [Channel — Talk Title](https://youtu.be/<video_id>?t=<seconds>) — fetched YYYY-MM-DD (human captions | auto-captions; paraphrase)
   - <paraphrase or — only if `is_auto = false` — direct quote>
 
@@ -895,12 +943,16 @@ web_refs:
 - [[Existing vault note 2]]
 
 ## Sources Investigated, Not Used
+
+Evidence funnel: <N> T1 canon hits → <N> T2 commentary hits → <N> T3 library/web → <N> T4 talks | Cited: <N> T1, <N> T2, <N> T3, <N> T4
+
 | Source | Type | Reason not used |
 |--------|------|-----------------|
-| MN60 para 12 | Canon | Duplicate of para 97 — same argument, verbatim repetition |
-| [[Some Book Title]] — Author | Library | Metadata hit only; no FTS snippet; title too generic to cite without content |
-| https://example.com/article | Web | Blocked / JS-only; content not retrievable |
-| Channel — Talk Title (video_id) | YouTube | Auto-captions only; Pāḷi terms mangled beyond reliable paraphrase |
+| MN60 para 12 | T1 Canon | Duplicate of para 97 — same argument, verbatim repetition |
+| Papañcasūdanī para 45 | T2 Commentary | Redundant — same gloss covered by para 44 already cited |
+| [[Some Book Title]] — Author | T3 Scholarly | Metadata hit only; no FTS snippet; title too generic to cite without content |
+| https://example.com/article | T3 Web | Blocked / JS-only; content not retrievable |
+| Channel — Talk Title (video_id) | T4 Talks | Auto-captions only; Pāḷi terms mangled beyond reliable paraphrase |
 
 ## Angles Not Pursued
 | Angle | Reason not pursued |
@@ -910,9 +962,14 @@ web_refs:
 | EBT āgama parallels | Sutta is uniquely Pāḷi; no Chinese / Sanskrit / Tibetan parallel attested |
 
 ## Critical Gaps
-- <weakest claim in this note and what source would close it>
-- <named perspective from the perspective map that lacked sufficient evidence>
-- <follow-up searches worth running>
+
+Severity legend: `blocker` = central claim is unreliable without this; `gap` = applicable angle with no sources; `nit` = would strengthen but doesn't undermine the argument.
+
+| Severity | Claim or perspective | What would close it |
+|----------|----------------------|---------------------|
+| `blocker` | <claim that rests on thin or secondary evidence only> | <specific search or source> |
+| `gap` | <named perspective from the perspective map with insufficient sources> | <where to look> |
+| `nit` | <minor omission or follow-up worth noting> | <suggested search> |
 
 ---
 *Researched by <Model family + version> on YYYY-MM-DD.*
@@ -937,8 +994,7 @@ topic: Meditation Subjects in Early Buddhist Texts: Frequency and Description
 topic: "Meditation Subjects in Early Buddhist Texts: Frequency and Description"
 ```
 
-**Rule F2 — `canon_refs` entries must come verbatim from `resolve-citation` output.
-Never guess or infer a sutta number from a sutta name, or a name from a number.**
+**⚠️ IRON RULE — Rule F2 — `canon_refs` entries must come verbatim from `resolve-citation` output. Never guess or infer a sutta number from a sutta name, or a name from a number.**
 
 The `human` field returned by `resolve-citation` is the *only* authoritative string.
 Copy it exactly. Common hallucination patterns to avoid:
@@ -1061,6 +1117,14 @@ The terminal report has two distinct sections. Keep them separate — conflating
 
 Only edits to `SKILL.md` or `tools/research_sources.py`. One line each, prefixed with `Improved:`. **If you made no skill edits, omit this section entirely** — don't pad it with content integrations (those go in Section 1).
 
+### Section 3 — Distillation reminder (conditional)
+
+Count the files in `kamma/runs/`. If there are 10 or more, print one line:
+
+> **Skill distillation due** — `kamma/runs/` has <N> reflections. Read them back and promote any recurring lessons into SKILL.md Hard Rules or guidance sections.
+
+If fewer than 10, omit this section entirely.
+
 ## When something fails
 
 - **Helper raises `FileNotFoundError`**: a path is wrong — tell the user, don't fudge.
@@ -1090,7 +1154,7 @@ vault search next time.
 - **Target depth: ~12 pages (~3,500 words), measured by source coverage.** This is the length at which the user has reported finding the notes most useful. Reach it by surfacing more sources, not by writing more prose per source. If a draft is short, the right fix is: did I search for all relevant canon passages? did I exhaust the Calibre library? did I pull transcripts from the most relevant Dhamma talks? — not: did I write enough sentences about each position?
 - **Template is structure, not length.** The note template shows section headings and citation formats. It is not a short form to fill in one pass. The Evidence sections in particular should be as long as the sources warrant.
 - Quote Pāḷi in IAST as it appears in the canon db (don't transliterate).
-- Critical Gaps is for honest self-assessment: the weakest claim, which named perspective lacked sources, and the specific text or search that would close each gap. Not a catch-all for "more research could be done".
+- Critical Gaps is for honest self-assessment, formatted as a severity table (`blocker` / `gap` / `nit`). Each row names one claim or missing perspective and the specific search that would close it. Not a catch-all for "more research could be done".
 - The note is written for a reader — typically the user, weeks later — who wants information and sources. Not a workflow log.
 
 ### Pāḷi/English presentation (vault note only)
