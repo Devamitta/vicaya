@@ -6,7 +6,7 @@ You ask a question. The tool searches your Obsidian vault, the Pāḷi canon
 (suttas, Vinaya, Abhidhamma, commentaries, sub-commentaries), your Calibre
 library, YouTube talks, and the open web. It drafts an answer with full
 citations, has a second model review the draft, and saves a single Markdown
-note into your vault under `Research/`. Notes link back to existing notes
+note into your vault under `Vicaya/`. Notes link back to existing notes
 on related topics, so the vault accumulates as a connected body of work.
 
 The skill is invoked as `/vicaya <your question>` inside Claude Code (or any

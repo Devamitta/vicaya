@@ -18,7 +18,7 @@ Ongoing. Each research run adds a note to the vault; the corpus grows
 and cross-links accumulate over time.
 
 ## What it produces
-A Markdown note at `<vault>/Research/YYYY-MM-DD - <slug>.md` with:
+A Markdown note at `<vault>/Vicaya/YYYY-MM-DD - <slug>.md` with:
 - YAML frontmatter (date, topic, canon_refs, library_refs, web_refs, tags)
 - Sectioned findings with inline citations
 - Wiki-links to related existing vault notes

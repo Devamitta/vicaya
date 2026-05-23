@@ -30,5 +30,5 @@
 - Channel allowlist: `data/youtube_channels.md`
 
 ## Output shape
-A single `.md` file per research session written into `<vault>/Research/`.
+A single `.md` file per research session written into `<vault>/Vicaya/`.
 Source helpers return plain Python lists-of-dicts; no external I/O inside helpers.

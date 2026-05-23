@@ -27,10 +27,10 @@ You can also pass seed references:
 
 ## Output
 
-A single Markdown note in your Obsidian vault under `Research/`:
+A single Markdown note in your Obsidian vault under `Vicaya/`:
 
 ```
-Research/YYYY-MM-DD - <slug>.md
+Vicaya/YYYY-MM-DD - <slug>.md
 ```
 
 Frontmatter is structured for Obsidian dataview queries. Citations are inline;
@@ -47,7 +47,7 @@ Seven phases (see `SKILL.md`):
    transcript fetch over a curated channel allowlist.
 5. **Synthesis** — Claude drafts findings with inline citations.
 6. **Cross-check** — independent second-opinion pass.
-7. **Write** — `obsidian create` saves the final note into `Research/`.
+7. **Write** — `obsidian create` saves the final note into `Vicaya/`.
 
 ## Dependencies
 

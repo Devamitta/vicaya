@@ -36,7 +36,7 @@ Hard-coded for this machine. If a path is missing or a tool isn't installed, sto
 All user-specific paths come from the project's `.env` file (see `.env.example` at the repo root). The helper module resolves them on import. Agents do not hard-code paths; use the helpers and CLI.
 
 - Vault Root: `$VICAYA_VAULT_PATH` (This is the absolute path to the root directory of the vault).
-- Output folder in vault: `$VICAYA_VAULT_PATH/Research/`
+- Output folder in vault: `$VICAYA_VAULT_PATH/Vicaya/`
 - Helper module: `<repo>/tools/research_sources.py`
 - Canon db: read-only SQLite at the path baked into the helper module.
 - Calibre library: path baked into the helper module. **Note: FTS indexing is in progress (14k books, takes days). Until then, Calibre search is metadata-only. The helper falls back automatically — don't try to force FTS.**
@@ -1108,7 +1108,7 @@ Write the note via the Obsidian CLI. Slugify the topic for the filename:
 TODAY=$(date +%Y-%m-%d)
 SLUG="<lowercase-hyphenated-slug>"
 obsidian vault=Obsidian create \
-  path="Research/${TODAY} - ${SLUG}.md" \
+  path="Vicaya/${TODAY} - ${SLUG}.md" \
   content="<full rendered markdown>" \
   open
 ```
@@ -1144,7 +1144,7 @@ from weasyprint.text.fonts import FontConfiguration
 
 today = "<TODAY>"
 slug = "<SLUG>"
-note_file = Path(vault_path).expanduser() / "Research" / f"{today} - {slug}.md"
+note_file = Path(vault_path).expanduser() / "Vicaya" / f"{today} - {slug}.md"
 pdf_out = Path(pdf_dir).expanduser() / f"{today} - {slug}.pdf"
 pdf_out.parent.mkdir(parents=True, exist_ok=True)
 
@@ -1203,7 +1203,7 @@ If fewer than 10, omit this section entirely.
 
 The Obsidian CLI requires the desktop app to be open. If `obsidian` commands fail with
 "The CLI is unable to find Obsidian", fall back to writing the note directly to disk at
-the vault path (`$VICAYA_VAULT_PATH/Research/`). Obsidian will index it on
+the vault path (`$VICAYA_VAULT_PATH/Vicaya/`). Obsidian will index it on
 next launch. Tell the user in the final report that they need to open Obsidian to use
 vault search next time.
 
