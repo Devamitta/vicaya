@@ -788,7 +788,7 @@ def gemini_cross_check(prompt: str, timeout: int = 120) -> str:
     return result.stdout.strip()
 
 
-# ---------- Cross-check (OpenRouter free chain) ----------
+# ---------- Cross-check (OpenRouter model chain) ----------
 
 _OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 _OPENROUTER_MODELS_PATH = _REPO_ROOT / "data" / "openrouter_models.json"
@@ -844,10 +844,10 @@ For each item, either fix the synthesis or note "no issue":
 
 
 def cross_check(prompt: str, timeout: int = 180) -> str:
-    """Cross-check `prompt` via OpenRouter's free-model chain.
+    """Cross-check `prompt` via OpenRouter's model chain.
 
     Returns the model's text on success. On any failure (no key, all models
-    rate-limited, network error, bad response shape) returns the
+    unreachable, network error, bad response shape) returns the
     `# SELF_REVIEW:` sentinel so the calling agent can run the checklist on
     its own synthesis instead.
 

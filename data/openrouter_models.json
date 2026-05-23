@@ -1,8 +1,7 @@
 {
-  "_help": "OpenRouter free model chain for Phase 6 cross-check. Quality first, speed second. OpenRouter falls through on rate-limit. CAP: max 3 entries (OpenRouter API limit). Browse free models at https://openrouter.ai/models?fmt=table&max_price=0",
+  "_help": "OpenRouter model chain for Phase 6 cross-check. Lead is a paid model (cheap + reliable); free backup only fires if the paid one is down. CAP: max 3 entries (OpenRouter API limit). Browse models at https://openrouter.ai/models",
   "models": [
-    "openai/gpt-oss-120b:free",
-    "arcee-ai/trinity-large-thinking:free",
-    "nvidia/nemotron-3-super-120b-a12b:free"
+    "deepseek/deepseek-v4-flash",
+    "openai/gpt-oss-120b:free"
   ]
 }

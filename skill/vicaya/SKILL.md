@@ -40,7 +40,7 @@ All user-specific paths come from the project's `.env` file (see `.env.example` 
 - Helper module: `<repo>/tools/research_sources.py`
 - Canon db: read-only SQLite at the path baked into the helper module.
 - Calibre library: path baked into the helper module. **Note: FTS indexing is in progress (14k books, takes days). Until then, Calibre search is metadata-only. The helper falls back automatically — don't try to force FTS.**
-- Cross-check uses an OpenRouter free-model chain (see Phase 6). Requires `OPENROUTER_API_KEY` in env / `.env`, or an OpenRouter key in `~/.local/share/opencode/auth.json`. When unavailable the helper returns a `# SELF_REVIEW:` sentinel and the agent runs the checklist on its own synthesis.
+- Cross-check uses an OpenRouter model chain (see Phase 6; current lead `deepseek/deepseek-v4-flash` — paid but ~$0.0001/call). Requires `OPENROUTER_API_KEY` in env / `.env`, or an OpenRouter key in `~/.local/share/opencode/auth.json`. When unavailable the helper returns a `# SELF_REVIEW:` sentinel and the agent runs the checklist on its own synthesis.
 - **Book code → source XML map**: `/home/bodhirasa/MyFiles/3_Active/dpd-db/tools/pali_text_files.py` maps every canon book code (e.g. `s0201m_mul`) to its source XML file in the DPD database. Consult this when you need to know which raw XML file a given book code corresponds to, or when debugging why a search returns no results for a book you expect to exist.
 
 ## Calling the helpers
@@ -63,7 +63,7 @@ Subcommands (each prints JSON to stdout):
 | `resolve-citation BOOK_CODE PARANUM` | — | Returns `Citation` JSON |
 | `search-calibre QUERY` | `--tags T...` `--limit N` | Diacritics stripped automatically |
 | `lookup-book VALUE` | — | Translate any CST book identifier into the others (filename, table, Pāḷi title, gui code, DPD code) |
-| `cross-check` | `--timeout N`; **prompt on stdin** | OpenRouter free-model chain → `# SELF_REVIEW:` sentinel on failure. Use this in Phase 6. |
+| `cross-check` | `--timeout N`; **prompt on stdin** | OpenRouter model chain (see `data/openrouter_models.json`) → `# SELF_REVIEW:` sentinel on failure. Use this in Phase 6. |
 | `gemini-cross-check` | `--timeout N`; **prompt on stdin** | Legacy direct gemini call. Not used in Phase 6; kept for ad-hoc use if you want a second opinion from a different provider. |
 
 Parse the JSON with `jq` or read it as a file. Only fall back to `uv run python -c "..."` if you genuinely need to combine helpers in one step — and if so, write a short `.py` script to a temp path and run that, rather than a heredoc.
@@ -878,7 +878,7 @@ EOF
 uv run tools/research_sources.py cross-check < /tmp/cross_check_prompt.txt > /tmp/cross_check_review.txt
 ```
 
-The `cross-check` helper POSTs to OpenRouter's free-model chain (model list in `data/openrouter_models.json` — edit freely, read at runtime). OpenRouter routes server-side via `models: [...]`: the first reachable model wins, subsequent entries cover rate-limits. On any failure (no key, all models down, network error) the helper returns the `# SELF_REVIEW:` sentinel. **If `/tmp/cross_check_review.txt` begins with `# SELF_REVIEW:`**, no external provider was reachable. In that case, run the embedded five-point checklist on your own synthesis: read each numbered item, audit your synthesis against it, and apply fixes the same way you would for an external review. Do not write anything in the note acknowledging the self-review fallback; it is still subject to the IRON RULE below. The terminal report in Phase 7 records `cross-check: self-review` instead of a model name.
+The `cross-check` helper POSTs to OpenRouter (model list in `data/openrouter_models.json` — edit freely, read at runtime). OpenRouter routes server-side via `models: [...]`: the first reachable model wins, subsequent entries cover outages / rate-limits. On any failure (no key, all models down, network error) the helper returns the `# SELF_REVIEW:` sentinel. **If `/tmp/cross_check_review.txt` begins with `# SELF_REVIEW:`**, no external provider was reachable. In that case, run the embedded five-point checklist on your own synthesis: read each numbered item, audit your synthesis against it, and apply fixes the same way you would for an external review. Do not write anything in the note acknowledging the self-review fallback; it is still subject to the IRON RULE below. The terminal report in Phase 7 records `cross-check: self-review` instead of a model name.
 
 **Silently integrate** anything substantive. If the review surfaces:
 - A missed school / lineage / teacher → research the primary or secondary sources for it and incorporate with proper citations (canon, library, web). If you can't substantiate it, drop it.
