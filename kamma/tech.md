@@ -9,7 +9,7 @@
 - **Library search:** `calibredb` (Calibre 9+); metadata search always, FTS when indexed
 - **YouTube:** `yt-dlp` for search, `youtube-transcript-api` for transcript fetch
 - **Web:** `WebSearch` / `WebFetch` (Claude Code built-ins)
-- **Cross-check:** `gemini` CLI (v0.40.1+); subprocess with 120s timeout; silent on failure
+- **Cross-check:** `cross_check()` POSTs to OpenRouter's free-model chain (model list in `data/openrouter_models.json` — server-side fallback via the `models: [...]` field). On any failure returns a `# SELF_REVIEW:` sentinel so the calling agent runs the Phase 6 checklist on its own synthesis. Stdlib `urllib`; no SDK dep. Key from `OPENROUTER_API_KEY` env / `.env`, or `~/.local/share/opencode/auth.json` → `.openrouter.key`.
 - **Tests:** pytest
 
 ## Constraints

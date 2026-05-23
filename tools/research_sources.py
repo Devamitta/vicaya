@@ -788,6 +788,100 @@ def gemini_cross_check(prompt: str, timeout: int = 120) -> str:
     return result.stdout.strip()
 
 
+# ---------- Cross-check (OpenRouter free chain) ----------
+
+_OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+_OPENROUTER_MODELS_PATH = _REPO_ROOT / "data" / "openrouter_models.json"
+_OPENROUTER_MAX_MODELS = 3  # OpenRouter API caps the `models` array at 3.
+_OPENCODE_AUTH_PATH = Path.home() / ".local" / "share" / "opencode" / "auth.json"
+
+
+def _load_openrouter_models() -> list[str]:
+    try:
+        with _OPENROUTER_MODELS_PATH.open("r", encoding="utf-8") as f:
+            models = json.load(f).get("models")
+        if isinstance(models, list) and all(isinstance(m, str) and m for m in models):
+            return models[:_OPENROUTER_MAX_MODELS]
+    except (OSError, json.JSONDecodeError):
+        pass
+    return []
+
+
+def _load_openrouter_key() -> str | None:
+    key = os.environ.get("OPENROUTER_API_KEY")
+    if key:
+        return key
+    try:
+        with _OPENCODE_AUTH_PATH.open("r", encoding="utf-8") as f:
+            entry = json.load(f).get("openrouter")
+    except (OSError, json.JSONDecodeError):
+        return None
+    if isinstance(entry, dict):
+        k = entry.get("key")
+        if isinstance(k, str) and k:
+            return k
+    return None
+
+
+_SELF_REVIEW_SENTINEL = """# SELF_REVIEW: OpenRouter cross-check unavailable.
+
+Run the Phase 6 checklist on your own synthesis before writing the note.
+For each item, either fix the synthesis or note "no issue":
+
+1. Perspective coverage — Are named positions underrepresented or
+   mischaracterised? Are major schools, teachers, or scholarly voices
+   missing from this topic entirely?
+2. Tier integrity — Is any claim attributed to the root canon (mūla) that
+   actually originates in the commentarial tradition (aṭṭhakathā / ṭīkā)?
+   Is any teacher's interpretation presented as if it were canonical?
+3. Citation quality — Are citations precise (book, chapter, paragraph,
+   page where applicable)? Any "as the Buddha said" without a sutta ref?
+4. Internal consistency — Do the evidence and the analysis agree? Any
+   conclusion that the cited passages do not actually support?
+5. Overreach — Any claim stated more strongly than the sources warrant?
+   Any speculation presented as established fact?
+"""
+
+
+def cross_check(prompt: str, timeout: int = 180) -> str:
+    """Cross-check `prompt` via OpenRouter's free-model chain.
+
+    Returns the model's text on success. On any failure (no key, all models
+    rate-limited, network error, bad response shape) returns the
+    `# SELF_REVIEW:` sentinel so the calling agent can run the checklist on
+    its own synthesis instead.
+
+    Model list lives in `data/openrouter_models.json` — edit freely;
+    OpenRouter routes server-side via the `models: [...]` field, so the
+    first reachable entry wins.
+    """
+    import urllib.request
+
+    key = _load_openrouter_key()
+    models = _load_openrouter_models()
+    if not key or not models:
+        return _SELF_REVIEW_SENTINEL
+
+    body = json.dumps({
+        "models": models,
+        "messages": [{"role": "user", "content": prompt}],
+    }).encode("utf-8")
+    req = urllib.request.Request(
+        _OPENROUTER_URL,
+        data=body,
+        headers={"Authorization": f"Bearer {key}",
+                 "Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            payload = json.loads(r.read().decode("utf-8"))
+        text = (payload["choices"][0]["message"]["content"] or "").strip()
+    except Exception:
+        return _SELF_REVIEW_SENTINEL
+    return text or _SELF_REVIEW_SENTINEL
+
+
 # ---------- CST book translator (sibling dpd-db) ----------
 
 _DPD_REPO_CANDIDATES = (
@@ -951,6 +1045,12 @@ def _cli() -> int:
                         help="Reads prompt from stdin to avoid shell quoting issues.")
     pg.add_argument("--timeout", type=int, default=120)
 
+    pcc = sub.add_parser("cross-check",
+                         help="OpenRouter cross-check; falls back to a "
+                              "# SELF_REVIEW: sentinel if unreachable. "
+                              "Reads prompt from stdin.")
+    pcc.add_argument("--timeout", type=int, default=180)
+
     py = sub.add_parser("search-youtube")
     py.add_argument("query")
     py.add_argument("--limit", type=int, default=20)
@@ -994,6 +1094,13 @@ def _cli() -> int:
             print("error: empty prompt on stdin", file=sys.stderr)
             return 1
         text = gemini_cross_check(prompt, timeout=args.timeout)
+        sys.stdout.write(text + "\n")
+    elif args.cmd == "cross-check":
+        prompt = sys.stdin.read()
+        if not prompt.strip():
+            print("error: empty prompt on stdin", file=sys.stderr)
+            return 1
+        text = cross_check(prompt, timeout=args.timeout)
         sys.stdout.write(text + "\n")
     return 0
 
