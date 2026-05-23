@@ -1115,6 +1115,54 @@ obsidian vault=Obsidian create \
 
 (Use `open` so it opens in Obsidian for the user when they come back.)
 
+### PDF generation (run after every successful vault write)
+
+After writing the note — whether via the Obsidian CLI or the disk fallback — generate
+a PDF copy. Read `VICAYA_PDF_PATH` from `.env`. If unset or empty, skip silently.
+
+```bash
+uv run python3 - << 'PDFEOF'
+import re, os, sys
+from pathlib import Path
+
+# Load env
+env = {}
+if Path(".env").exists():
+    for line in Path(".env").read_text().splitlines():
+        if "=" in line and not line.startswith("#"):
+            k, _, v = line.partition("=")
+            env[k.strip()] = v.strip()
+
+pdf_dir = os.environ.get("VICAYA_PDF_PATH") or env.get("VICAYA_PDF_PATH", "")
+vault_path = os.environ.get("VICAYA_VAULT_PATH") or env.get("VICAYA_VAULT_PATH", "")
+if not pdf_dir or not vault_path:
+    sys.exit(0)
+
+import markdown
+from weasyprint import HTML, CSS
+from weasyprint.text.fonts import FontConfiguration
+
+today = "<TODAY>"
+slug = "<SLUG>"
+note_file = Path(vault_path).expanduser() / "Research" / f"{today} - {slug}.md"
+pdf_out = Path(pdf_dir).expanduser() / f"{today} - {slug}.pdf"
+pdf_out.parent.mkdir(parents=True, exist_ok=True)
+
+text = note_file.read_text()
+body = re.sub(r'^---\n.*?\n---\n', '', text, count=1, flags=re.DOTALL)
+html = markdown.markdown(body, extensions=['tables', 'fenced_code'])
+full_html = f"<html><body>{html}</body></html>"
+
+font_config = FontConfiguration()
+css = CSS(string="@page { margin: 20mm; } body { font-family: Georgia, serif; font-size: 11pt; line-height: 1.6; }", font_config=font_config)
+HTML(string=full_html).write_pdf(str(pdf_out), stylesheets=[css], font_config=font_config)
+print(f"PDF → {pdf_out}")
+PDFEOF
+```
+
+Replace `<TODAY>` and `<SLUG>` with the actual values used when writing the note.
+Include the PDF path in the Section 1 run summary if generation succeeded.
+
 ## Final report to the user
 
 The terminal report has two distinct sections. Keep them separate — conflating them was a recurring bug in prior runs.
