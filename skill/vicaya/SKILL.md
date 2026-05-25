@@ -1710,6 +1710,27 @@ print(f"PDF → {pdf_out}")
 Replace `<TODAY>` and `<SLUG>` with the actual values used when writing the note.
 Include the PDF path in the Section 1 run summary if generation succeeded.
 
+### GitHub push (run after successful PDF generation)
+
+After PDF generation, push the new note to `bdhrs/vicaya-notes` so collaborators
+receive it automatically. Derive the repo path from the already-loaded `vault_path`:
+
+```python
+import subprocess
+notes_repo = str(Path(vault_path).expanduser() / "Vicaya")
+note_filename = f"{today} - {slug}.md"
+try:
+    subprocess.run(["git", "-C", notes_repo, "add", note_filename], check=True, capture_output=True)
+    subprocess.run(["git", "-C", notes_repo, "commit", "-m", f"note: {today} - {slug}"], check=True, capture_output=True)
+    subprocess.run(["git", "-C", notes_repo, "push", "origin", "HEAD"], check=True, capture_output=True)
+    print(f"GitHub → pushed {note_filename}")
+except Exception as e:
+    print(f"GitHub push skipped: {e}")
+```
+
+Add the result (`GitHub → pushed …` or `GitHub push skipped: …`) to the Section 1
+run summary. A push failure is never fatal — the note is already saved to the vault.
+
 ## Final report to the user
 
 The terminal report has two distinct sections. Keep them separate — conflating them was a recurring bug in prior runs.
