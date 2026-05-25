@@ -1120,12 +1120,19 @@ obsidian vault=Obsidian create \
 After writing the note — whether via the Obsidian CLI or the disk fallback — generate
 a PDF copy. Read `VICAYA_PDF_PATH` from `.env`. If unset or empty, skip silently.
 
-```bash
-uv run python3 - << 'PDFEOF'
-import re, os, sys
+Write the following to `temp/gen_pdf_run.py`, then execute it with `uv run temp/gen_pdf_run.py`:
+
+```python
+# Generate PDF for the current vicaya note
+import re, os, sys, platform, subprocess
 from pathlib import Path
 
-# Load env
+# macOS: weasyprint needs Homebrew GLib/Pango; re-exec with library path set
+if platform.system() == "Darwin" and "/opt/homebrew/lib" not in os.environ.get("DYLD_LIBRARY_PATH", ""):
+    env = dict(os.environ)
+    env["DYLD_LIBRARY_PATH"] = "/opt/homebrew/lib:" + env.get("DYLD_LIBRARY_PATH", "")
+    sys.exit(subprocess.run([sys.executable] + sys.argv, env=env).returncode)
+
 env = {}
 if Path(".env").exists():
     for line in Path(".env").read_text().splitlines():
@@ -1157,7 +1164,6 @@ font_config = FontConfiguration()
 css = CSS(string="@page { margin: 20mm; } body { font-family: Georgia, serif; font-size: 11pt; line-height: 1.6; }", font_config=font_config)
 HTML(string=full_html).write_pdf(str(pdf_out), stylesheets=[css], font_config=font_config)
 print(f"PDF → {pdf_out}")
-PDFEOF
 ```
 
 Replace `<TODAY>` and `<SLUG>` with the actual values used when writing the note.
