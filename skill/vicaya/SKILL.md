@@ -1031,6 +1031,7 @@ Render the final markdown. Use this template as a structural guide — expand ev
 ---
 date: YYYY-MM-DD
 topic: <one-line topic>
+tool: "https://github.com/bdhrs/vicaya"
 agent: "<Model family + version, e.g. Claude Opus 4.7 (claude-opus-4-7)>"
 tags:
   - research
@@ -1110,7 +1111,7 @@ Severity legend: `blocker` = central claim is unreliable without this; `gap` = a
 | `nit` | <minor omission or follow-up worth noting> | <suggested search> |
 
 ---
-*Researched by <Model family + version> on YYYY-MM-DD.*
+*Researched by [Vicaya](https://github.com/bdhrs/vicaya) using <Model family + version> on YYYY-MM-DD HH:MM.*
 
 [^s0201m-70]: MN9 Sammādiṭṭhisuttaṃ para 70 — db: s0201m_mul, para 70
 [^calibre-223]: [[On Meditation]] — Ajahn Chah (Calibre #223)
@@ -1189,7 +1190,7 @@ The `book_id` must come from `CalibreHit.book_id` — never invent an ID.
 The note records which model produced it, in two places:
 
 1. The `agent` frontmatter field — quoted string, format `"<Family Version> (<exact model id>)"`.
-2. A single italic footer line at the very end of the note: `*Researched by <Family Version> on YYYY-MM-DD.*`
+2. A single italic footer line at the very end of the note: `*Researched by [Vicaya](https://github.com/bdhrs/vicaya) using <Family Version> on YYYY-MM-DD HH:MM.*`
 
 Read your own model identity from your runtime context — do **not** guess from training
 data, and do **not** invent a version number. If you genuinely cannot determine your
@@ -1205,12 +1206,18 @@ Examples by agent:
 This is metadata, not attribution-in-scholarship — Hard Rule 1 still forbids weaving
 model identity into the findings, evidence, or analysis.
 
+**Rule F6 — `tool` field: always set to the Vicaya repo URL.**
+
+Every note must include `tool: "https://github.com/bdhrs/vicaya"` in the frontmatter.
+This field is fixed — never vary the URL, never omit it.
+
 ### Correct frontmatter example (reference this when writing)
 
 ```yaml
 ---
 date: 2026-05-12
 topic: "Ānāpānasati: Breath Meditation in the Nikāyas"
+tool: "https://github.com/bdhrs/vicaya"
 agent: "Claude Opus 4.7 (claude-opus-4-7)"
 tags:
   - research
