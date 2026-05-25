@@ -275,6 +275,9 @@ Use the same slug you'll use for the vault note. Initialise with this structure:
 ## Phase 4b — YouTube
 <append: video_id, title, channel, tier, relevant transcript segments with timestamps>
 
+## Phase 4c — WisdomLib
+<append: terms looked up, URLs fetched, key definitions with tradition + source labels>
+
 ## Phase 5 — Synthesis draft
 <full draft before any cross-check editing>
 
@@ -1291,6 +1294,41 @@ Transcripts are cached under `data/youtube_cache/<video_id>.json` — subsequent
 To locate the relevant moment in a long talk, scan `segments` for keywords (English glosses or the auto-caption form of the Pāḷi term) and cite the `start` timestamp.
 
 → **Scratch** — append Phase 4b results: video IDs fetched, transcript summaries (is_auto flag, key timestamps), any tier-rejected channels.
+
+### Phase 4c — WisdomLib
+
+**This phase is mandatory on every run — it cannot be skipped.** WisdomLib is a comprehensive encyclopaedia of Indian religion, philosophy, and culture, covering Buddhist (Theravāda, Mahāyāna, Tibetan), Hindu (Nyāya, Vaiśeṣika, Yoga, Vedānta, Ayurveda, and others), and Jain traditions. It is the most reliable single-site source for precise definitions of technical Sanskrit and Pāḷi terms.
+
+**For every principal technical term in the research question** — up to ~8 terms per run — fetch:
+
+```
+https://www.wisdomlib.org/definition/<term-ascii>
+```
+
+**Term formation rule — ASCII only in the URL path.** Strip all diacritics before constructing the URL. Examples:
+
+| Term as written | URL path segment |
+|---|---|
+| dukkha / duḥkha | `dukkha` / `duhkha` |
+| paṭiccasamuppāda | `paticcasamuppada` |
+| nibbāna / nirvāṇa | `nibbana` / `nirvana` |
+| saṃsāra / saṃskāra | `samsara` / `samskara` |
+| anicca / anityatā | `anicca` / `anityata` |
+
+When a term has both a Pāḷi form and a Sanskrit IAST form, fetch **both** — the two pages cover different tradition clusters (Pāḷi page emphasises Theravāda; Sanskrit page covers Hindu schools and Mahāyāna).
+
+**Filtering results by tradition.** The page lists definitions from many traditions. Focus on entries relevant to the question's tradition: for Pāḷi/Theravāda questions, prioritise Theravāda, Pāḷi dictionary, and Abhidhamma entries. For pan-Indian or comparative questions, read entries from multiple traditions and note where they converge or diverge.
+
+**Evidence tier.**
+- Default: **T2** (encyclopaedic secondary — treats the site as a scholarly reference work).
+- Upgrade to **T1** only when the WisdomLib entry quotes a primary canon text verbatim and identifies it by name; in that case also cite the primary text directly.
+
+**Citation form:**
+```
+[wisdomlib.org — <Term>](https://www.wisdomlib.org/definition/<term-ascii>) — retrieved YYYY-MM-DD
+```
+
+→ **Scratch** — append Phase 4c results: terms fetched, URLs, key definitions with tradition + source labels, any 404s or empty pages.
 
 ### Phase 5 — Synthesis
 
