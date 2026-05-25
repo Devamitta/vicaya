@@ -71,6 +71,10 @@ DEFAULT_VAULT_PATH = _env_path("VICAYA_VAULT_PATH", "~/Obsidian")
 DEFAULT_CALIBRE_LIBRARY = _env_path("VICAYA_CALIBRE_LIBRARY")
 DEFAULT_CANON_DB = _env_path("VICAYA_CANON_DB")
 DEFAULT_DPD_DB = _env_path("VICAYA_DPD_DB")
+DEFAULT_EBC_VAULT_PATH = _env_path(
+    "VICAYA_EBC_VAULT_PATH",
+    "~/MyFiles/2_Resources/Early Buddhist Connections",
+)
 
 # CST text-type suffix → label used in fallback citations.
 _TEXT_TYPE_LABELS: dict[str, str] = {
@@ -146,6 +150,24 @@ class YouTubeTranscript:
     is_auto: bool
     segments: list[dict]  # [{"start": float, "duration": float, "text": str}, ...]
     fetched: str  # ISO-8601 date
+
+
+@dataclass
+class EBCOverview:
+    code: str
+    path: str
+    pts: str = ""
+    titles: list[str] = None  # type: ignore[assignment]
+    nikaya: list[str] = None  # type: ignore[assignment]
+    chapter: list[str] = None  # type: ignore[assignment]
+    themes: list[str] = None  # type: ignore[assignment]
+    topics: list[str] = None  # type: ignore[assignment]
+    training: list[str] = None  # type: ignore[assignment]
+    formula: list[str] = None  # type: ignore[assignment]
+    audience: list[str] = None  # type: ignore[assignment]
+    teacher: list[str] = None  # type: ignore[assignment]
+    parallels_agama: list[str] = None  # type: ignore[assignment]
+    parallels_partial: list[str] = None  # type: ignore[assignment]
 
 
 # ---------- Vault search ----------
@@ -770,6 +792,197 @@ def fetch_youtube_transcript(
     return transcript
 
 
+# ---------- EBC (Early Buddhist Connections) vault ----------
+
+# Nikāya prefixes seen in EBC sutta codes. Used to locate the overview-card
+# directory `+Suttas/Overviews Suttas/<NIK>/`. Longest prefixes first so
+# `THAG` is matched before `T`.
+_EBC_NIKAYA_PREFIXES: tuple[str, ...] = (
+    "PDHP", "THAG", "THIG",
+    "SNP", "DHP", "ITI",
+    "MN", "DN", "SN", "AN",
+    "UD",
+    "MA", "DA", "EA", "SA",
+    "T",
+)
+
+
+def _normalise_sutta_code(s: str) -> str:
+    """`mn 10`, `MN-10`, `mn10` → `MN10`. Idempotent on already-normalised codes."""
+    return s.strip().upper().replace(" ", "").replace("-", "").replace("_", "")
+
+
+def _ebc_nikaya_for(code: str) -> str | None:
+    for prefix in _EBC_NIKAYA_PREFIXES:
+        if code.startswith(prefix):
+            return prefix
+    return None
+
+
+def _find_ebc_overview_path(code: str, vault: Path) -> Path | None:
+    nik = _ebc_nikaya_for(code)
+    if not nik:
+        return None
+    base = vault / "+Suttas" / "Overviews Suttas" / nik
+    if not base.exists():
+        return None
+    for match in base.rglob(f"{code}.md"):
+        return match
+    return None
+
+
+def _parse_ebc_yaml(text: str) -> dict[str, str | list[str]]:
+    """Parse the leading `---\\n...\\n---` block.
+
+    Supports scalar `key: "value"` and one-level lists rendered as
+    `key:\\n  - "a"\\n  - "b"`. Strips surrounding quotes. Skips everything else.
+    """
+    lines = text.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return {}
+    out: dict[str, str | list[str]] = {}
+    current_key: str | None = None
+    current_list: list[str] | None = None
+    for line in lines[1:]:
+        if line.strip() == "---":
+            break
+        if line.startswith("  - "):
+            if current_list is not None:
+                current_list.append(line[4:].strip().strip('"').strip("'"))
+            continue
+        if current_list is not None and current_key is not None:
+            out[current_key] = current_list
+            current_list = None
+            current_key = None
+        if ":" not in line:
+            continue
+        key, _, val = line.partition(":")
+        key = key.strip()
+        val = val.strip()
+        if val == "":
+            current_key = key
+            current_list = []
+        else:
+            out[key] = val.strip('"').strip("'")
+    if current_list is not None and current_key is not None:
+        out[current_key] = current_list
+    return out
+
+
+def _split_parallel_refs(raw: str) -> list[str]:
+    """Extract sutta codes from a `parallels_*` value like
+    `"[[EA12.1]]; [[MA98]], [[MA31]]"`. Returns a de-duplicated list preserving order.
+    """
+    if not raw:
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+    buf = ""
+    for ch in raw:
+        if ch == "[":
+            buf = ""
+        elif ch == "]":
+            ref = buf.strip()
+            if ref and ref not in seen:
+                seen.add(ref)
+                out.append(ref)
+            buf = ""
+        else:
+            buf += ch
+    if not out:
+        for token in raw.replace(";", ",").split(","):
+            ref = token.strip().strip("[]")
+            if ref and ref not in seen:
+                seen.add(ref)
+                out.append(ref)
+    return out
+
+
+def _as_list(v) -> list[str]:
+    if v is None:
+        return []
+    if isinstance(v, list):
+        return [str(x) for x in v if str(x).strip()]
+    s = str(v).strip()
+    return [s] if s else []
+
+
+def get_ebc_overview(
+    code: str,
+    vault: Path | None = DEFAULT_EBC_VAULT_PATH,
+) -> EBCOverview | None:
+    """Return the structured overview card for an EBC sutta, or None if missing."""
+    if vault is None:
+        return None
+    normalised = _normalise_sutta_code(code)
+    path = _find_ebc_overview_path(normalised, vault)
+    if path is None:
+        return None
+    yaml = _parse_ebc_yaml(path.read_text(encoding="utf-8"))
+    return EBCOverview(
+        code=str(yaml.get("sutta_code") or normalised),
+        path=str(path),
+        pts=str(yaml.get("sutta_pts") or ""),
+        titles=_as_list(yaml.get("sutta_title")),
+        nikaya=_as_list(yaml.get("nikaya")),
+        chapter=_as_list(yaml.get("sutta_chapter")),
+        themes=_as_list(yaml.get("sutta_theme")),
+        topics=_as_list(yaml.get("sutta_topic")),
+        training=_as_list(yaml.get("sutta_training")),
+        formula=_as_list(yaml.get("sutta_formula")),
+        audience=_as_list(yaml.get("sutta_audience")),
+        teacher=_as_list(yaml.get("sutta_teacher")),
+        parallels_agama=_split_parallel_refs(str(yaml.get("parallels_agama") or "")),
+        # EBC frontmatter uses the (sic) key `parallels_partilal`.
+        parallels_partial=_split_parallel_refs(str(yaml.get("parallels_partilal") or "")),
+    )
+
+
+def search_ebc(
+    query: str,
+    folder: str | None = None,
+    vault: Path | None = DEFAULT_EBC_VAULT_PATH,
+    limit: int = 20,
+) -> list[VaultHit]:
+    """Recursive fixed-string grep across the EBC vault (markdown files only).
+
+    Uses `grep -rn -F --include='*.md'` so no ripgrep dependency. ~40ms on
+    the full 22k-file vault for a typical Pāḷi query.
+    """
+    if vault is None or not vault.exists():
+        return []
+    root = vault / folder if folder else vault
+    if not root.exists():
+        return []
+    cmd = [
+        "grep", "-rn", "-F", "-a",
+        "--include=*.md",
+        "--", query, str(root),
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+    # grep exits 1 when there are no matches; only treat >1 as an error.
+    if result.returncode > 1:
+        return []
+    hits: list[VaultHit] = []
+    for line in result.stdout.splitlines():
+        # `path:line:text` — `grep -n` always emits two colons before the text.
+        parts = line.split(":", 2)
+        if len(parts) < 3:
+            continue
+        path, lineno, text = parts
+        snippet = text.strip()
+        if len(snippet) > 300:
+            snippet = snippet[:297] + "..."
+        try:
+            line_int: int | None = int(lineno)
+        except ValueError:
+            line_int = None
+        hits.append(VaultHit(path=path, snippet=snippet, line=line_int))
+        if len(hits) >= limit:
+            break
+    return hits
+
+
 # ---------- Gemini cross-check ----------
 
 
@@ -1076,6 +1289,17 @@ def _cli() -> int:
                     help="cst_filename (s0101m.mul), table name (s0101m_mul), "
                          "Pāḷi title, gui code (dn1), or DPD code (DN/DNa).")
 
+    peo = sub.add_parser("get-ebc-overview",
+                         help="Parse the EBC per-sutta overview card for SUTTA_CODE.")
+    peo.add_argument("code", help="Sutta code, e.g. MN10, mn-10, mn 10, DN22, MA98.")
+
+    pes = sub.add_parser("search-ebc",
+                         help="Fixed-string grep across the Early Buddhist Connections vault.")
+    pes.add_argument("query")
+    pes.add_argument("--folder", default=None,
+                     help="Restrict to a subfolder of the EBC vault.")
+    pes.add_argument("--limit", type=int, default=20)
+
     args = p.parse_args()
 
     if args.cmd == "search-vault":
@@ -1111,6 +1335,14 @@ def _cli() -> int:
             return 1
         text = cross_check(prompt, timeout=args.timeout)
         sys.stdout.write(text + "\n")
+    elif args.cmd == "get-ebc-overview":
+        result = get_ebc_overview(args.code)
+        if result is None:
+            print(f"error: no EBC overview for {args.code!r}", file=sys.stderr)
+            return 1
+        _dump(result)
+    elif args.cmd == "search-ebc":
+        _dump(search_ebc(args.query, folder=args.folder, limit=args.limit))
     return 0
 
 

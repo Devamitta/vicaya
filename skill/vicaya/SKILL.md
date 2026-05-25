@@ -42,6 +42,7 @@ All user-specific paths come from the project's `.env` file (see `.env.example` 
 - Calibre library: path baked into the helper module. **Note: FTS indexing is in progress (14k books, takes days). Until then, Calibre search is metadata-only. The helper falls back automatically — don't try to force FTS.**
 - Cross-check uses an OpenRouter model chain (see Phase 6; current lead `deepseek/deepseek-v4-flash` — paid but ~$0.0001/call). Requires `OPENROUTER_API_KEY` in env / `.env`, or an OpenRouter key in `~/.local/share/opencode/auth.json`. When unavailable the helper returns a `# SELF_REVIEW:` sentinel and the agent runs the checklist on its own synthesis.
 - **Book code → source XML map**: `/home/bodhirasa/MyFiles/3_Active/dpd-db/tools/pali_text_files.py` maps every canon book code (e.g. `s0201m_mul`) to its source XML file in the DPD database. Consult this when you need to know which raw XML file a given book code corresponds to, or when debugging why a search returns no results for a book you expect to exist.
+- **EBC vault** (Early Buddhist Connections): `$VICAYA_EBC_VAULT_PATH` — a separate, read-only Obsidian vault of curated EBT material. Supplies per-sutta Āgama-parallel metadata, multiple parallel English translations of each sutta, Chinese-Āgama translations (Patton + BDK), and a Pātimokkha rule/commentary set. See the **EBC vault** section below.
 
 ## Calling the helpers
 
@@ -65,6 +66,8 @@ Subcommands (each prints JSON to stdout):
 | `lookup-book VALUE` | — | Translate any CST book identifier into the others (filename, table, Pāḷi title, gui code, DPD code) |
 | `cross-check` | `--timeout N`; **prompt on stdin** | OpenRouter model chain (see `data/openrouter_models.json`) → `# SELF_REVIEW:` sentinel on failure. Use this in Phase 6. |
 | `gemini-cross-check` | `--timeout N`; **prompt on stdin** | Legacy direct gemini call. Not used in Phase 6; kept for ad-hoc use if you want a second opinion from a different provider. |
+| `get-ebc-overview SUTTA_CODE` | — | Parsed EBC overview card: PTS ref, titles, themes, training, formula, **named Āgama parallels**, partial parallels. Accepts `MN10`, `mn 10`, `mn-10`, `DN22`, `MA98`, etc. Returns `EBCOverview` JSON or exits 1 if missing. |
+| `search-ebc QUERY` | `--folder PATH` `--limit N` | Fixed-string grep across the EBC vault (markdown only). Returns `VaultHit`s. `--folder` accepts a subdir like `+Suttas/Overviews Suttas/MN` or `+Vinaya/Patimokkha/bmc1`. |
 
 Parse the JSON with `jq` or read it as a file. Only fall back to `uv run python -c "..."` if you genuinely need to combine helpers in one step — and if so, write a short `.py` script to a temp path and run that, rather than a heredoc.
 
@@ -78,6 +81,7 @@ Every helper returns dataclasses serialised to JSON by the CLI. Field names are 
 - **CalibreHit**: `book_id` (int), `title` (str), `authors` (str), `tags` (list[str]), `location` (str), `snippet` (str — populated only when FTS is ready).
 - **YouTubeHit**: `video_id` (str), `title` (str), `channel` (str), `channel_id` (str), `duration` (float | null, seconds), `url` (str), `tier` (str — `trusted` | `probationary`; `excluded` never appears here, those are filtered out).
 - **YouTubeTranscript**: `video_id` (str), `lang` (str, e.g. `"en"`), `is_auto` (bool — **true means Pāḷi terms are unreliable; paraphrase, don't quote**), `segments` (list of `{start, duration, text}`), `fetched` (ISO date).
+- **EBCOverview**: `code` (str), `path` (str — absolute path to the overview file), `pts` (str, e.g. `"M i 55"`), `titles` (list — Pāḷi + English), `nikaya` (list), `chapter` (list), `themes` (list), `topics` (list), `training` (list), `formula` (list), `audience` (list), `teacher` (list), `parallels_agama` (list of bare codes, e.g. `["MA98", "EA12.1"]`), `parallels_partial` (list).
 
 ## Book-identifier lookups (`lookup-book`)
 
@@ -102,6 +106,111 @@ Returns a JSON list of `{cst_filename, cst_table, cst_book_name, gui_book_code,
 dpd_book_code}`. Empty list on no match. The embedded book-code map below is
 still the primary reference for picking `--books` patterns; `lookup-book` is
 for one-off translations during a run.
+
+## EBC vault (Early Buddhist Connections)
+
+A second, read-only Obsidian vault sitting alongside the main vault at
+`$VICAYA_EBC_VAULT_PATH` (default `~/MyFiles/2_Resources/Early Buddhist Connections`).
+Source: https://github.com/dhamma-vinaya-connections/early-buddhist-connections.
+Treat it as reference material — never write to it. Output notes always land in
+`$VICAYA_VAULT_PATH/Vicaya/`.
+
+**Two helpers** (`get-ebc-overview`, `search-ebc`) cover the structured-metadata
+case. Everything else is plain files on disk — open them with `Read` once you
+know the path. The folder map below tells you where each kind of file lives.
+
+### Folder map
+
+```
++Suttas/
+  Overviews Suttas/<NIK>/<RANGE?>/<CODE>.md     # per-sutta YAML card
+  Sutta Texts/
+    Bodhi/<nik>-bodhi/<code>-bodhi.md           # Ven. Bodhi (MN, SN, AN)
+    Sujato-pali/<nik>-sujato-pali/<code>-sujato-pali.md  # bilingual Sujato
+    dn_walshe/<code>-walshe.md                  # DN only (Maurice Walshe)
+    Thanissaro notes/...                        # Ajahn Ṭhānissaro notes
+    Anīgha/...
+    Pali Only/pali-sc/...                       # raw Pāḷi (SuttaCentral)
+    Deep Seek-Pali/<nik>_deepseek_pali/...      # machine-aligned Pāḷi
+    Agamas Dhamma pearls/<nik>-patton/<code>-patton.md  # Chinese Āgama (Patton)
+    Agamas BDK/<nik>-bdk/<code>-bdk.md          # Chinese Āgama (BDK)
+  Indexes Suttas/<NIK>/                         # Nikāya indexes
+  Indexes Suttas/Thematic indexes/              # ATI, Suttafriends, etc.
++Vinaya/
+  Patimokkha/
+    bmc1/                                       # Buddhist Monastic Code I (Ven. Ṭhānissaro)
+    Ñañatusita/                                 # Ñāṇatusita analysis + translation
+    Vibhanga/{Monks,Nuns}/                      # Canonical Vibhanga
+    Rule Overviews/{BU,BNI}/                    # Rule-by-rule overview cards
+  Khandhakas/
+    Brahmali/{mv,cv}-brahmali-pali/             # Ajahn Brahmali bilingual
+    Deepseek/{mv,cv}-deepseek-pali/             # Machine-aligned Pāḷi
+Catalogue/
+  Suttas-Catalogue.tsv                          # 14k rows of structured metadata
+  Patimokkha-Catalogue.tsv
+```
+
+Nikāya prefixes used in `<NIK>` and `<code>`: `MN`, `DN`, `SN`, `AN`, `DHP`,
+`UD`, `ITI`, `SNP`, `THAG`, `THIG`, `MA`, `DA`, `EA`, `SA`, `T`, `PDHP`.
+
+### When to reach for EBC
+
+1. **Any sutta-anchored question** → `get-ebc-overview <code>` first. One call
+   gives you PTS ref, themes, training, formula, and the full list of named
+   Chinese-Āgama parallels + partial parallels. This is the single highest-leverage
+   capability and replaces a SuttaCentral parallel-table lookup.
+2. **Want a verbatim Chinese-Āgama parallel quote** → from the overview's
+   `parallels_agama`, pick a code (e.g. `MA98`), then `Read` the Patton or BDK
+   translation at the path shown in the folder map. Patton paragraphs are
+   numbered; quote with `Madhyamāgama 98, trans. Charles Patton, §<n>`.
+3. **Compare English translators on the same sutta** → `Read` two files from
+   `Sutta Texts/Bodhi/`, `Sujato-pali/`, `dn_walshe/`, `Thanissaro notes/`, etc.
+4. **Thematic catalogue lookup** → `grep -F "4 satipaṭṭhānā" Catalogue/Suttas-Catalogue.tsv`
+   (the file is one TSV; no helper needed). Columns include `sutta_theme`,
+   `sutta_topic`, `sutta_training`, `sutta_formula`, `āgamas_parallels`,
+   `sanskrit_parallels`, `taisho_parallels`.
+5. **Pātimokkha rule + commentary** → `search-ebc <rule> --folder "+Vinaya/Patimokkha"`,
+   or `Read` directly under `bmc1/` (Ṭhānissaro) or `Ñañatusita/`.
+6. **Free-text discovery across everything** → `search-ebc <query>` (fixed-string
+   grep, markdown only, ~40ms on the full 22k-file vault). Pāḷi terms are sparse
+   enough that hits are precise.
+
+### Citation rules
+
+- **Always cite the underlying translator or text, never "EBC".** EBC is the
+  delivery mechanism; the scholarship is from Bodhi / Sujato / Ṭhānissaro /
+  Patton / Brahmali / etc. Quote as e.g. *MN 10, trans. Bhikkhu Sujato §17* or
+  *MA 98, trans. Charles Patton §5*.
+- **Evidence tiers** (see the global tier table elsewhere in this doc):
+  - Mūla Pāḷi files and Chinese-Āgama translations (Patton, BDK) → **T1** for the
+    canonical text they carry.
+  - Modern English translations (Bodhi, Sujato, Walshe, Ṭhānissaro) → **T3**
+    when cited as translator's reading.
+  - bmc1, Ñāṇatusita analysis, overview-card editorial summary/key-excerpts/similes
+    → **T2** (commentarial / tradition-aligned editorial).
+  - The overview-card YAML fields (`parallels_agama`, `themes`, etc.) are
+    bibliographic metadata — use freely to *find* texts; don't cite them as a
+    doctrinal source.
+
+### Examples
+
+```bash
+# Step 1: get parallels for MN 10
+uv run tools/research_sources.py get-ebc-overview MN10
+
+# Step 2: read the Madhyamāgama parallel
+# (path from the folder map; the overview confirms MA98 is one of the parallels)
+# Use the Read tool on:
+#   $VICAYA_EBC_VAULT_PATH/+Suttas/Sutta Texts/Agamas Dhamma pearls/ma-patton/ma98-patton.md
+
+# Free-text discovery scoped to one translator
+uv run tools/research_sources.py search-ebc "ekayano ayaṁ maggo" \
+  --folder "+Suttas/Sutta Texts/Sujato-pali" --limit 10
+
+# Vinaya commentary search
+uv run tools/research_sources.py search-ebc "pārājika" \
+  --folder "+Vinaya/Patimokkha/bmc1" --limit 10
+```
 
 ## Research scratchpad
 
@@ -418,6 +527,10 @@ Pull up to 4 search variations (Pāḷi term, English gloss, related concept). S
 
 **If `search-vault` returns 0 on terms you'd expect to find**, fall back to `rg "<term>" <vault-path>` — the helper has a known diacritic/index bug that can silently miss files `rg` finds.
 
+**EBC seed lookup** — if the question is anchored on one or more specific suttas (named in the user's question, or surfaced by the vault search), call `get-ebc-overview <code>` once per sutta. The returned `parallels_agama` and `parallels_partial` lists feed directly into the perspective map and the Phase 3 parallel-evidence search; the `themes`, `formula`, and `training` fields can suggest related suttas you might otherwise miss. This costs nothing and replaces a SuttaCentral parallel-table lookup.
+
+For thematic (non-sutta-anchored) questions, `grep -F "<theme>" "$VICAYA_EBC_VAULT_PATH/Catalogue/Suttas-Catalogue.tsv"` is the cheapest way to surface a candidate sutta list before Phase 2 — the TSV has columns for theme, topic, training, formula, and parallels.
+
 **Perspective map.** Before moving to Phase 2, explicitly name the 2–5 competing positions or schools of thought the question touches. Examples: "Theravāda commentarial vs. Ñāṇavīra structural", "cessationist vs. realist readings of Nibbāna", "three-lives vs. momentary paṭiccasamuppāda". If the question is purely factual with no interpretive dispute, skip this step. Otherwise, tag subsequent evidence — canon hits, library sources, web sources — as supporting a named position. This ensures the final note covers all significant views, not just the first position the search surfaces.
 
 **Counter-perspective search.** For each position named in the perspective map, actively search for sources that support it — don't rely on the first position the keyword searches happen to surface. If a web or canon search returns only one school's voice, run a second search scoped to a known proponent of the opposing view (e.g. `authors:Analayo` for early-Buddhist readings, a specific scholar for the academic critique). Evidence gaps for any named position belong in Critical Gaps, not silent omission.
@@ -637,6 +750,18 @@ If the hit is a `subhead` rend (the row introduces the next sutta), prefer looki
 **⚠️ IRON RULE — Paragraph numbers are book-global.** The `paranum` in a `CanonHit` is a continuous index across the entire book file, not local to the sutta. Always run `resolve-citation` to confirm which sutta a paragraph belongs to before citing it (see Hard Rule 9).
 
 → **Scratch** — append Phase 2 results: queries run, all human refs resolved, any empty-result gaps.
+
+#### EBC parallel-evidence pull
+
+For every sutta cited from the Pāḷi canon in Phase 2, pull the matching parallel evidence from EBC. This is what the Phase 1 `get-ebc-overview` call set up:
+
+1. **Chinese Āgama parallels.** From the overview's `parallels_agama` list, pick the closest parallel(s) (full parallels first, then partial). `Read` the Patton translation at `+Suttas/Sutta Texts/Agamas Dhamma pearls/<nik>-patton/<code>-patton.md`, falling back to BDK at `Agamas BDK/<nik>-bdk/<code>-bdk.md` if no Patton file exists. Quote verbatim with paragraph numbers and attribute to the translator (e.g. *Madhyamāgama 98, trans. Charles Patton, §5*). This is T1 evidence for the parallel recension and is *not* substitutable by a SuttaCentral link.
+2. **Alternative Pāḷi translations.** When a translator-specific reading is doctrinally load-bearing (e.g. a contested term like *vitakka* / *vicāra* or *upādāna*), pull a second translator from `Sutta Texts/Bodhi/`, `Sujato-pali/`, `dn_walshe/`, or `Thanissaro notes/` and quote side-by-side. T3.
+3. **Vinaya rule + commentary.** For Vinaya questions, after the canon mūla quote, pull bmc1 (`+Vinaya/Patimokkha/bmc1/`) for Ṭhānissaro's analysis and/or Ñāṇatusita (`+Vinaya/Patimokkha/Ñañatusita/`). T2.
+
+Pāḷi names in EBC use exact diacritics, same as the canon db. The overview-card paths are absolute — copy them directly into `Read`. If a named parallel has no file (rare), note it as a known gap rather than silently dropping the parallel.
+
+→ **Scratch** — append the EBC pulls: parallel codes consulted, files read, any missing parallels logged as gaps.
 
 ### Phase 3 — Library search
 
