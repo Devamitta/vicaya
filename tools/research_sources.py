@@ -75,6 +75,10 @@ DEFAULT_EBC_VAULT_PATH = _env_path(
     "VICAYA_EBC_VAULT_PATH",
     "~/MyFiles/2_Resources/Early Buddhist Connections",
 )
+DEFAULT_GRETIL_PATH = _env_path(
+    "VICAYA_GRETIL_PATH",
+    "~/MyFiles/2_Resources/gretil",
+)
 
 # CST text-type suffix → label used in fallback citations.
 _TEXT_TYPE_LABELS: dict[str, str] = {
@@ -983,6 +987,55 @@ def search_ebc(
     return hits
 
 
+# ---------- Sanskrit (GRETIL) search ----------
+
+
+def search_sanskrit(
+    query: str,
+    folder: str | None = None,
+    path: Path | None = None,
+    limit: int = 20,
+) -> list[VaultHit]:
+    """Fixed-string grep across the local GRETIL corpus (.htm files, Unicode IAST).
+
+    Use `Path(hit.path).stem` to derive the text name from the file path
+    (e.g. `avs___u.htm` → `avs___u`). Files contain IAST text with light HTML
+    markup; grep matches cleanly against the text lines.
+    Returns [] silently when VICAYA_GRETIL_PATH is unset or the path doesn't exist.
+    """
+    root_path = path or DEFAULT_GRETIL_PATH
+    if root_path is None or not root_path.exists():
+        return []
+    root = root_path / folder if folder else root_path
+    if not root.exists():
+        return []
+    cmd = [
+        "grep", "-rn", "-F", "-a",
+        "--include=*.htm",
+        "--", query, str(root),
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+    if result.returncode > 1:
+        return []
+    hits: list[VaultHit] = []
+    for line in result.stdout.splitlines():
+        parts = line.split(":", 2)
+        if len(parts) < 3:
+            continue
+        hit_path, lineno, text = parts
+        snippet = text.strip()
+        if len(snippet) > 300:
+            snippet = snippet[:297] + "..."
+        try:
+            line_int: int | None = int(lineno)
+        except ValueError:
+            line_int = None
+        hits.append(VaultHit(path=hit_path, snippet=snippet, line=line_int))
+        if len(hits) >= limit:
+            break
+    return hits
+
+
 # ---------- Gemini cross-check ----------
 
 
@@ -1300,6 +1353,13 @@ def _cli() -> int:
                      help="Restrict to a subfolder of the EBC vault.")
     pes.add_argument("--limit", type=int, default=20)
 
+    pss = sub.add_parser("search-sanskrit",
+                         help="Fixed-string grep across the local GRETIL Sanskrit corpus (.txt files).")
+    pss.add_argument("query")
+    pss.add_argument("--folder", default=None,
+                     help="Restrict to a subfolder of the GRETIL corpus (e.g. '1_veda').")
+    pss.add_argument("--limit", type=int, default=20)
+
     args = p.parse_args()
 
     if args.cmd == "search-vault":
@@ -1343,6 +1403,8 @@ def _cli() -> int:
         _dump(result)
     elif args.cmd == "search-ebc":
         _dump(search_ebc(args.query, folder=args.folder, limit=args.limit))
+    elif args.cmd == "search-sanskrit":
+        _dump(search_sanskrit(args.query, folder=args.folder, limit=args.limit))
     return 0
 
 

@@ -5,8 +5,8 @@ Vicaya is a multi-source research workflow for Pāḷi and Buddhist topics,
 invoked as `/vicaya <question>` inside Claude Code (or any agent that reads
 a Markdown skill file). It queries the user's Obsidian vault, a local CST
 canon SQLite database, the Early Buddhist Connections (EBC) reference vault,
-their Calibre library, YouTube Dhamma talks, and the open web — in that
-order — cross-checks the synthesis with a second model,
+their Calibre library, a local GRETIL Sanskrit corpus, YouTube Dhamma talks,
+and the open web — in that order — cross-checks the synthesis with a second model,
 and writes a single structured Markdown note into the vault. The goal is
 to make deep Pāḷi research fast, citation-complete, and cumulative.
 

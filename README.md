@@ -21,6 +21,7 @@ Each source is optional — if the tool or path isn't configured it is silently 
 | **Obsidian vault** | Your existing research notes |
 | **Pāḷi canon** | Local SQLite DB — CST text, translations, commentaries |
 | **Calibre library** | Your book collection; metadata always, full-text when indexed |
+| **Sanskrit (GRETIL)** | Local clone of the GRETIL corpus — Vedic, Epic, Upaniṣadic, and philosophical Sanskrit texts in IAST plain text |
 | **YouTube** | Dhamma talks and sutta studies via a curated channel allowlist |
 | **Web** | General search and page fetch |
 | **Gemini cross-check** | Second model reviews the draft before the note is written |
@@ -46,7 +47,13 @@ Each source is optional — if the tool or path isn't configured it is silently 
    ln -sf "$(pwd)/skill/vicaya" ~/.claude/skills/vicaya
    ```
 
-5. Run `/vicaya <a question>` in Claude Code.
+5. (Optional) Clone the GRETIL Sanskrit corpus for pre-Buddhist source search:
+   ```bash
+   git clone https://github.com/wujastyk/GRETIL-mirror.git ~/MyFiles/2_Resources/gretil
+   ```
+   Set `VICAYA_GRETIL_PATH` in `.env` to match. If skipped, Sanskrit source search is silently disabled.
+
+6. Run `/vicaya <a question>` in Claude Code.
 
 Full setup notes are in [`skill/vicaya/SKILL.md`](skill/vicaya/SKILL.md).
 
@@ -189,6 +196,9 @@ find ~ -maxdepth 8 -name "tipitaka-translation-data.db" 2>/dev/null | head -3
 
 # DPD DB — dpd.db (from dpd-db project)
 find ~ -maxdepth 8 -name "dpd.db" 2>/dev/null | head -3
+
+# GRETIL corpus — check if already cloned
+find ~ -maxdepth 6 -name "gretil.html" 2>/dev/null | head -3
 ```
 
 If any path is not found, leave that variable blank in `.env` — the
@@ -211,6 +221,7 @@ VICAYA_VAULT_PATH=~/Obsidian
 VICAYA_CALIBRE_LIBRARY=~/Calibre Library
 VICAYA_CANON_DB=~/path/to/dpd-db/resources/tipitaka_translation_db/tipitaka-translation-data.db
 VICAYA_DPD_DB=~/path/to/dpd-db/dpd.db
+VICAYA_GRETIL_PATH=~/MyFiles/2_Resources/gretil
 ```
 
 Verify the file was written and does not contain placeholder text:

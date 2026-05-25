@@ -388,15 +388,24 @@ where the question warrants it.
 the Buddhist position — meditation terminology with Upaniṣadic precedent,
 debates the suttas engage (e.g. ātman, fire-imagery, varṇa), shared lexicon
 (*dhamma*, *karma*, *yoga*, *samādhi*), comparative cosmology.
-*Where to search:* Calibre tag `Sanskrit Text`; verify against
-`data/calibre_tags.csv` whether `Hinduism`, `Jainism`, `Vedic`, `Upanishads`,
-`Indology`, `Indian Religion` exist as tags — use what is present, free-text
-otherwise. Authors: Patrick Olivelle, Johannes Bronkhorst, Richard Gombrich
-(esp. *How Buddhism Began*), Karel Werner. Web: GRETIL (Sanskrit etext archive),
-*Encyclopædia of Indian Religions*.
-*Satisfying hit:* a Sanskrit / Vedic / Jain passage or scholar's analysis
-showing the term, debate, or image at issue; explicit note when the Buddhist
-position responds to or departs from the precedent.
+*Where to search:*
+- **Local GRETIL corpus** (Phase 3b): `search-sanskrit` — Vedic, Epic, Upaniṣadic,
+  and philosophical Sanskrit texts in IAST (`.htm` files; text is clean IAST with
+  light HTML markup). Use `Path(hit.path).stem` to derive the text name (e.g.
+  `avs___u` from `avs___u.htm`). Scope to a subfamily with `--folder` (e.g.
+  `--folder 1_veda`). Only available when `VICAYA_GRETIL_PATH` is configured.
+- **Calibre**: tag `Sanskrit Text`; verify against `data/calibre_tags.csv` whether
+  `Hinduism`, `Jainism`, `Vedic`, `Upanishads`, `Indology`, `Indian Religion` exist
+  as tags — use what is present, free-text otherwise. Authors: Patrick Olivelle,
+  Johannes Bronkhorst, Richard Gombrich (esp. *How Buddhism Began*), Karel Werner.
+- **Web**: GRETIL online (gretil.sub.uni-goettingen.de) when local corpus absent;
+  *Encyclopædia of Indian Religions*.
+
+*Satisfying hit:* a verbatim IAST passage from GRETIL with text name + line number,
+**or** a Sanskrit / Vedic / Jain passage via Calibre or scholar's analysis showing
+the term, debate, or image at issue; explicit note when the Buddhist position responds
+to or departs from the precedent. Note: searching by English translation theme is
+often more productive than searching IAST terms directly.
 
 **8. Other religions — Christianity, Islam, Daoism, Confucianism, etc.**
 *Applies to:* questions where cross-religious comparison is genuinely
@@ -894,6 +903,43 @@ If all five rungs return nothing, the topic is genuinely absent from the
 library — note it as a gap in *Open Threads*, do not invent a citation.
 
 → **Scratch** — append Phase 3 results: Calibre hits (book_id, title, author), any FTS snippets, gaps noted.
+
+### Phase 3b — Sanskrit source search
+
+**Skip this phase** unless angle 7 was marked applicable in Phase 1, or unless `VICAYA_GRETIL_PATH` is configured (check with `echo $VICAYA_GRETIL_PATH`).
+
+Search the local GRETIL corpus for IAST terms or transliterated Sanskrit relevant to the question:
+
+```bash
+uv run tools/research_sources.py search-sanskrit "<iast-term>" --limit 20
+uv run tools/research_sources.py search-sanskrit "<iast-term>" \
+  --folder "gretil.sub.uni-goettingen.de/gretil/1_sanskr/1_veda" --limit 20
+```
+
+**Note:** Searching English translation themes (e.g. "non-self", "breathe") is often more productive than searching IAST terms directly (e.g. `anātman`), because there is no equivalent to SuttaCentral for Sanskrit — transliterations are not standardised across files.
+
+**Deriving the text name:** use `Path(hit["path"]).stem` — e.g. `rigveda_shas_u.txt` → `rigveda_shas_u`.
+
+**Citation format:** `<TextName> [GRETIL], line <N>` — e.g. *rigveda_shas_u [GRETIL], line 1423*.
+Include the verbatim IAST snippet as a blockquote. Evidence tier: **T3** (critical edition / primary text via GRETIL, treated as scholarly resource).
+
+**Sanskrit subfolder map** (relative to `VICAYA_GRETIL_PATH`):
+```
+gretil.sub.uni-goettingen.de/gretil/
+  1_sanskr/
+    1_veda/   — Vedic Saṃhitās, Brāhmaṇas, Āraṇyakas, Upaniṣads, Vedāṅgas
+    2_epic/   — Mahābhārata, Rāmāyaṇa
+    3_purana/ — Purāṇas
+    4_rellit/ — Religious literature (Dharmaśāstra, Āgamas, etc.)
+    5_poetry/ — Classical poetry (Kālidāsa, etc.)
+    6_sastra/ — Śāstra literature (grammar, philosophy, science)
+  2_pali/     — Pāli texts (if you want to cross-check against canon DB)
+  corpustei/  — TEI/XML versions of all texts (avoid for grep — use htm)
+```
+
+Returns `[]` silently if the corpus is not installed — skip without error.
+
+→ **Scratch** — append Phase 3b results: queries tried, hit count, text names found, any IAST passages worth quoting.
 
 ### Phase 4a — Web search
 

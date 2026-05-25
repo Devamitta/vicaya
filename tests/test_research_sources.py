@@ -19,6 +19,7 @@ from tools.research_sources import (  # noqa: E402
     DEFAULT_CALIBRE_LIBRARY,
     DEFAULT_CANON_DB,
     DEFAULT_DPD_DB,
+    DEFAULT_GRETIL_PATH,
     CalibreHit,
     CanonHit,
     VaultHit,
@@ -27,6 +28,7 @@ from tools.research_sources import (  # noqa: E402
     resolve_citation,
     search_calibre,
     search_canon,
+    search_sanskrit,
     search_vault,
 )
 
@@ -321,6 +323,31 @@ class TestTranscriptCache:
         assert result.video_id == "cachedvid"
         assert result.is_auto is False
         assert result.segments[0]["text"] == "hello"
+
+
+# ---------- search_sanskrit ----------
+
+gretil_available = pytest.mark.skipif(
+    DEFAULT_GRETIL_PATH is None or not DEFAULT_GRETIL_PATH.exists(),
+    reason="GRETIL corpus not available (VICAYA_GRETIL_PATH)",
+)
+
+
+class TestSearchSanskrit:
+    def test_returns_empty_when_unconfigured(self, tmp_path):
+        from tools.research_sources import search_sanskrit
+
+        result = search_sanskrit("atman", path=tmp_path / "nonexistent")
+        assert result == []
+
+    @gretil_available
+    def test_returns_vault_hits(self):
+        hits = search_sanskrit("atman", limit=5)
+        assert isinstance(hits, list)
+        for h in hits:
+            assert isinstance(h, VaultHit)
+            assert h.path.endswith(".htm")
+            assert h.snippet
 
 
 @cst_translator_available
