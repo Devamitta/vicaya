@@ -397,3 +397,94 @@ class TestLookupBook:
 
     def test_empty_input(self):
         assert lookup_book("") == []
+
+
+# ---------- _strip_xml ----------
+
+
+class TestStripXml:
+    def test_strips_tei_markup(self):
+        from tools.research_sources import _strip_xml
+
+        sample = '<p rend="bodytext">Sā <pb ed="T" n="1.0131" /> papañcārāmassa</p>'
+        assert _strip_xml(sample) == "Sā papañcārāmassa"
+
+    def test_decodes_common_entities(self):
+        from tools.research_sources import _strip_xml
+
+        assert _strip_xml("a &amp; b &lt;c&gt;") == "a & b <c>"
+
+    def test_collapses_whitespace_and_preserves_diacritics(self):
+        from tools.research_sources import _strip_xml
+
+        assert _strip_xml("\n  ñāṇa   ā\n") == "ñāṇa ā"
+
+    def test_handles_empty_and_none_safe(self):
+        from tools.research_sources import _strip_xml
+
+        assert _strip_xml("") == ""
+
+
+# ---------- sc-parallels / sc-search ----------
+
+from tools.research_sources import DEFAULT_SC_DATA_PATH  # noqa: E402
+
+sc_available = pytest.mark.skipif(
+    DEFAULT_SC_DATA_PATH is None or not DEFAULT_SC_DATA_PATH.exists(),
+    reason="SuttaCentral offline archive not available (VICAYA_SC_DATA_PATH)",
+)
+
+
+class TestSCParallels:
+    def test_returns_empty_when_unconfigured(self, tmp_path):
+        from tools.research_sources import sc_parallels
+
+        assert sc_parallels("mn18", sc_root=tmp_path / "nonexistent") == []
+
+    def test_returns_empty_on_empty_citation(self):
+        from tools.research_sources import sc_parallels
+
+        assert sc_parallels("") == []
+
+    @sc_available
+    def test_mn18_has_expected_parallels(self):
+        from tools.research_sources import sc_parallels
+
+        ps = sc_parallels("mn18", include_text=False)
+        refs = {p.ref for p in ps}
+        # MN18 has known parallels in Chinese (MĀ 115) and the EĀ.
+        assert "ma115" in refs
+        assert "ea40.10" in refs
+        # Query itself should not appear in its own parallels list.
+        assert "mn18" not in refs
+
+    @sc_available
+    def test_text_gaps_flagged_when_missing(self):
+        from tools.research_sources import sc_parallels
+
+        ps = sc_parallels("mn18", include_text=True)
+        ma115 = next((p for p in ps if p.ref == "ma115"), None)
+        # MA115 isn't in the partial offline archive — gap must be reported,
+        # not silently rendered as empty text.
+        if ma115 is not None:
+            assert not any([ma115.text_pali, ma115.text_lzh,
+                            ma115.text_san, ma115.text_pra])
+            assert ma115.text_gaps  # non-empty
+
+
+class TestSCSearch:
+    def test_returns_empty_when_unconfigured(self, tmp_path):
+        from tools.research_sources import sc_search
+
+        assert sc_search("anything", sc_root=tmp_path / "nonexistent") == []
+
+    @sc_available
+    def test_pli_search_returns_vault_hits(self):
+        from tools.research_sources import sc_search
+
+        hits = sc_search("papañca", lang="pli", limit=3)
+        assert isinstance(hits, list)
+        for h in hits:
+            assert isinstance(h, VaultHit)
+            assert h.path.endswith(".json")
+            assert "papañca" in h.snippet

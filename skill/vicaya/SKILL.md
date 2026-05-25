@@ -68,6 +68,9 @@ Subcommands (each prints JSON to stdout):
 | `gemini-cross-check` | `--timeout N`; **prompt on stdin** | Legacy direct gemini call. Not used in Phase 6; kept for ad-hoc use if you want a second opinion from a different provider. |
 | `get-ebc-overview SUTTA_CODE` | — | Parsed EBC overview card: PTS ref, titles, themes, training, formula, **named Āgama parallels**, partial parallels. Accepts `MN10`, `mn 10`, `mn-10`, `DN22`, `MA98`, etc. Returns `EBCOverview` JSON or exits 1 if missing. |
 | `search-ebc QUERY` | `--folder PATH` `--limit N` | Fixed-string grep across the EBC vault (markdown only). Returns `VaultHit`s. `--folder` accepts a subdir like `+Suttas/Overviews Suttas/MN` or `+Vinaya/Patimokkha/bmc1`. |
+| `calibre-check` | — | Probe whether the Calibre library is reachable right now. Exits 0 if ok, 1 if locked or unavailable, with a specific message. Use at Phase 3 start. |
+| `sc-parallels CITATION` | `--no-text` | Look up parallels for a citation (e.g. `mn18`, `sn35.28`) in the offline SuttaCentral archive. Returns `SCParallel` objects: `ref`, `resemblance` (bool, `~` prefix), `paragraph_range`, `text_pali`, `text_lzh`, `text_san`, `text_pra`, `translation_en`, `text_gaps` (list — explicit when text isn't in the partial archive). Parallel *identification* is comprehensive; text retrieval is best-effort. |
+| `sc-search QUERY` | `--lang pli\|lzh\|san\|pra\|en` `--limit N` | Fixed-string grep across SuttaCentral offline root texts in one language. `lzh` = Literary Chinese Āgamas. Returns `VaultHit`s with the matched JSON segment. |
 
 Parse the JSON with `jq` or read it as a file. Only fall back to `uv run python -c "..."` if you genuinely need to combine helpers in one step — and if so, write a short `.py` script to a temp path and run that, rather than a heredoc.
 
@@ -76,7 +79,7 @@ Parse the JSON with `jq` or read it as a file. Only fall back to `uv run python 
 Every helper returns dataclasses serialised to JSON by the CLI. Field names are exact — guessing them has caused crashes in prior runs.
 
 - **VaultHit**: `path` (str), `snippet` (str), `line` (int | null)
-- **CanonHit**: `book_code` (str, e.g. `s0201m_mul`), `paranum` (str), `pali` (str), `english` (str), `chinese` (str). **No `snippet` field** — quote from `pali` / `english` directly.
+- **CanonHit**: `book_code` (str, e.g. `s0201m_mul`), `paranum` (str), `pali` (str), `english` (str), `chinese` (str). **No `snippet` field** — quote from `pali` / `english` directly. XML/TEI markup is stripped automatically; text is plain UTF-8.
 - **Citation**: `machine` (e.g. `s0201m_mul:23`), `human` (e.g. `MN60 Apaṇṇakasuttaṃ para 97`), `pitaka`, `text_type`, `paranum`.
 - **CalibreHit**: `book_id` (int), `title` (str), `authors` (str), `tags` (list[str]), `location` (str), `snippet` (str — populated only when FTS is ready).
 - **YouTubeHit**: `video_id` (str), `title` (str), `channel` (str), `channel_id` (str), `duration` (float | null, seconds), `url` (str), `tier` (str — `trusted` | `probationary`; `excluded` never appears here, those are filtered out).
@@ -214,8 +217,17 @@ uv run tools/research_sources.py search-ebc "pārājika" \
 
 ## Research scratchpad
 
-Context compaction can erase findings mid-run. Guard against it by writing
-research results to disk after each phase.
+Context compaction can erase findings mid-run — including between Phase 7 write,
+PDF generation, and reflection. The scratch file is the only reliable defence.
+
+**Model: scratch = comprehensive dossier. Vault = curated distillation.**
+The scratch file holds *everything found* — full Pāḷi + English quotes, complete
+library excerpts, full web summaries, transcript segments with timestamps, every
+query tried (including 0-hit ones), cross-check raw output, phase completion log.
+The vault note is a curated subset: what earns its place, cited and attributed.
+This separation means: (a) recovery after compaction is "read the scratch and
+continue"; (b) future related runs can grep scratch files for already-harvested
+sources; (c) the vault stays clean — only *complete* notes are ever written there.
 
 **At the start of every run**, create the scratch file inside the repo's
 `data/scratch/` folder (gitignored, so it persists across reboots and is
@@ -223,38 +235,83 @@ never committed):
 
 ```bash
 SCRATCH="<repo-root>/data/scratch/$(date +%Y%m%d)_<slug>.md"
-echo "# Vicaya scratch — $(date +%Y-%m-%d)\nQuestion: <question>" > "$SCRATCH"
 ```
 
-Use the same slug you'll use for the vault note. Keep `$SCRATCH` in your
-working context so subsequent phases can append to it.
-
-**⚠️ IRON RULE — a phase is not complete until its scratchpad block is written.** Do not move to the next phase until the append is done. This is the only reliable defence against compaction erasing findings mid-run.
-
-**After each of Phases 1–4b**, append a summary block:
+Use the same slug you'll use for the vault note. Initialise with this structure:
 
 ```markdown
-## Phase N — <name>
-- Queries: <list>
-- Hits: <human refs or titles, one per line>
-- Perspective map: <positions, Phase 1 only>
-- Errors: <any tool failures>
+# Vicaya dossier — YYYY-MM-DD
+**Question:** <question>
+**Slug:** <slug>
+**Vault note:** (path set at Phase 7 start)
+
+## Phase log
+- Phase 0 start: <ts>
+
+## Angle triage
+<filled in Phase 1>
+
+## Perspective map
+<filled in Phase 1>
+
+## Phase 1 — Vault / EBC
+<append all hits>
+
+## Phase 2 — Canon
+<append every hit: full pali + english, paranum, resolve-citation output>
+
+## Phase 2.5 — SC Parallels
+<append sc-parallels output per sutta; text_gaps logged explicitly>
+
+## Phase 3 — Library
+<append every hit: book_id, title, authors, full snippet or extracted excerpt>
+
+## Phase 3b — Sanskrit
+<append GRETIL hits if applicable>
+
+## Phase 4 — Web
+<append every source: full summary, URL, date>
+
+## Phase 4b — YouTube
+<append: video_id, title, channel, tier, relevant transcript segments with timestamps>
+
+## Phase 5 — Synthesis draft
+<full draft before any cross-check editing>
+
+## Phase 6 — Cross-check raw output
+<paste raw cross-check output verbatim>
+
+## Phase 6 — Integrations
+<what was integrated from cross-check, with source>
+
+## Considered but excluded
+<sources looked at and dropped: reason (redundant / lower tier / off-topic / unreliable)>
+
+## Phase 7 — Note written
+- Path: <vault path>
+- PDF: <pdf path or "skipped">
+
+## Reflection written
+- Path: <runs/ path or "skipped">
 ```
 
-**At the start of Phase 5**, read the file back before drafting:
+Keep `$SCRATCH` in your working context so subsequent phases can append to it.
+
+**⚠️ IRON RULE — a phase is not complete until its scratchpad block is written.** Do not move to the next phase until the append is done. This rule covers every phase including Phase 7 (note write), PDF generation, and reflection — the full sequence is one compaction-safe unit. If context compaction can hit between any two of these steps, each step must record its completion in the Phase log before the next step begins.
+
+**At the start of Phase 5**, read the full scratch file before drafting:
 
 ```bash
 cat "$SCRATCH"
 ```
 
 This is the compaction rescue step — even if your context was compressed,
-the full list of what was found is in that file.
+the full dossier is in that file. Missing file: proceed from context, do not abort.
 
-**After Phase 7** (vault note written), leave the scratch file in place. It accumulates in `data/scratch/` as a post-mortem record and analysis input — gitignored, never committed.
-
-If the file is missing when Phase 5 starts, proceed from whatever is in
-your context — do not abort. The scratch file is a safety net, not a
-prerequisite.
+**After Phase 7** (vault note written, PDF attempted, reflection started), leave the
+scratch file in place. It accumulates in `data/scratch/` as a permanent research
+dossier — gitignored, never committed. Future runs on related topics should grep
+`data/scratch/` for already-harvested sources before starting fresh queries.
 
 ## Evidence tiers
 
@@ -320,14 +377,20 @@ human reference (e.g. *MN60 Apaṇṇakasuttaṃ para 97*).
 **2. EBT āgama parallels — Chinese Āgamas, Sanskrit fragments, Tibetan parallels.**
 *Applies to:* any sutta-level question where parallel recensions exist (most
 Nikāya material has at least partial parallels).
-*Where to search:* web — SuttaCentral parallel listings for the sutta in
-question (use SuttaCentral via a non-WebFetch path: read the parallel table from
-`accesstoinsight.org` cross-references or `dhammatalks.org`; otherwise fall
-back to documented secondary sources). Calibre `authors:Analayo` (Bhikkhu
-Anālayo's *Comparative Study of the Majjhima-Nikāya* and related work is the
-standard reference). Calibre tags `Chinese Canon (Tripitaka)`, `Sanskrit Canon`,
-`Tibetan Canon`, `Comparative Studies`. Corporate author `84000` for Tibetan
-canon parallels.
+*Where to search:*
+- **`sc-parallels <uid>`** (offline SuttaCentral archive) — first call for any
+  Pāḷi sutta. Returns the full parallel list from `parallels.json` (comprehensive)
+  plus text and English translation where the partial archive has them. `text_gaps`
+  explicitly flags missing texts rather than silently returning empty — log these
+  as known gaps in Critical Gaps. The partial archive covers SA well, MA partially
+  (~15 suttas), EA minimally — `text_gaps` will tell you.
+- **EBC vault** (`get-ebc-overview <code>`) — provides named Āgama parallels with
+  files readable via `Read`. Patton (MA) and BDK translations at
+  `+Suttas/Sutta Texts/Agamas Dhamma pearls/` and `Agamas BDK/`.
+- **Calibre `authors:Analayo`** — Bhikkhu Anālayo's *Comparative Study of the
+  Majjhima-Nikāya* and related work is the standard T3 reference. Tags
+  `Chinese Canon (Tripitaka)`, `Sanskrit Canon`, `Tibetan Canon`, `Comparative
+  Studies`. Corporate author `84000` for Tibetan canon.
 *Satisfying hit:* a named parallel (e.g. MĀ 16 for MN 60) with a citation to
 Anālayo's comparative analysis or to a sectarian recension; an explicit note
 when *no* parallel exists.
@@ -463,12 +526,19 @@ term it engages, cited to a book or paper.
 
 **12. Philosophy — analytic, phenomenological, comparative, history of philosophy.**
 *Applies to:* questions about ontology, epistemology, philosophy of mind,
-ethics, time, causation, personal identity, free will, language.
+ethics, time, causation, personal identity, free will, language; also
+**constructed selfhood, phenomenal experience, and anattā** (phenomenology is
+directly relevant to Buddhist self-theory and mind-construction topics).
 *Where to search:* Calibre tag `Philosophy` (631 books). Authors: Mark Siderits,
 Jay Garfield, Evan Thompson, Jonardon Ganeri, Steven Collins (*Selfless
 Persons*, *Nirvana and Other Buddhist Felicities*), Charles Goodman, Owen
-Flanagan. Series: Routledge philosophy of religion, OUP. Web: *Stanford
-Encyclopedia of Philosophy* entries on Buddhism, *Philosophy East and West*.
+Flanagan. **Phenomenology specifically:** Thomas Metzinger (*Being No One*,
+*The Ego Tunnel* — phenomenal self model, PSM; central to anattā / constructed
+selfhood), Dan Zahavi (*Subjectivity and Selfhood*, *Phenomenology and the
+Self*; leading Buddhism–phenomenology bridge scholar), Maurice Merleau-Ponty
+(embodied perception — relevant to vedanā and sense-contact topics). Series:
+Routledge philosophy of religion, OUP. Web: *Stanford Encyclopedia of
+Philosophy* entries on Buddhism, *Philosophy East and West*.
 *Satisfying hit:* a philosophical analysis or argument cited to a named
 philosopher.
 
@@ -504,6 +574,26 @@ Akira, Andrew Skilton (*A Concise History of Buddhism*), Richard Gombrich,
 Heinz Bechert, Donald Lopez. Web: *Journal of the International Association of
 Buddhist Studies*.
 *Satisfying hit:* a historical claim with a date, place, and scholarly source.
+
+**16. Cross-school / Āgama comparison — Chinese, Sanskrit, Tibetan recensions.**
+*Applies to:* questions explicitly about school divergence, EBT critical history,
+doctrinal development, or transmission — cases where the Pāḷi alone gives a
+one-school picture and parallel recensions materially change the analysis.
+*Where to search:*
+- `sc-parallels <uid>` for any anchoring Pāḷi sutta — see angle 2 for detail.
+- `sc-search <term> --lang lzh` to grep the offline Chinese Āgama root texts directly.
+- `sc-search <term> --lang san` / `--lang pra` for Sanskrit/Prakrit fragments.
+- EBC vault `Agamas Dhamma pearls/` (Patton translations) and `Agamas BDK/` (BDK translations).
+- Calibre `authors:Analayo`, `authors:Bingenheimer` (SA), `authors:Choong` (EA), tags `Comparative Studies`, `Chinese Canon (Tripitaka)`.
+**Hard rule — machine-translated Chinese is comprehension-only.** When no
+published translation exists, machine translation may be used as a reading aid
+to assess relevance. It must **never** be quoted in the vault note as a
+translation. Only published translations (Patton, BDK, Anālayo, Bingenheimer,
+Sujato where available) may be quoted. Absent a published translation, paraphrase
+and mark as "(no published translation; summary from Chinese source)".
+*Satisfying hit:* a named parallel recension with a published translation quote,
+or an explicit statement of doctrinal divergence between Pāḷi and Āgama versions
+with both sides cited.
 
 ### Phase 0 — Scope check
 
@@ -758,6 +848,34 @@ If the hit is a `subhead` rend (the row introduces the next sutta), prefer looki
 
 **⚠️ IRON RULE — Paragraph numbers are book-global.** The `paranum` in a `CanonHit` is a continuous index across the entire book file, not local to the sutta. Always run `resolve-citation` to confirm which sutta a paragraph belongs to before citing it (see Hard Rule 9).
 
+**After individual hits cluster in the same book or nipāta, scan the wider structural unit.** Stem-search returns scattered paragraph hits but misses thematic chapter blocks (e.g. AN8.31–39 dāna chapter, SN35.* sense-contact group). When hits concentrate in one table, do a broader window query:
+
+```bash
+sqlite3 "$CANON_DB" \
+  "SELECT id, paranum, pali_text, english_translation FROM <table> \
+   WHERE id BETWEEN <first_cluster_id - 50> AND <last_cluster_id + 200> \
+   AND pali_text != '' ORDER BY id;"
+```
+
+This surfaces chapter-level collections the keyword search misses.
+
+**CST schema reference.** All CST tables share this column set (verify once with `PRAGMA table_info(<table>)` if unsure):
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | INTEGER PK | monotonically increasing, book-global |
+| `rend` | TEXT | TEI element class (`bodytext`, `gatha`, `subhead`, `pb`, …) — stripped from `pali` / `english` before return |
+| `paranum` | TEXT | book-global paragraph number; empty on continuation rows |
+| `pali_text` | TEXT | Pāḷi source (NFC UTF-8 diacritics) |
+| `myanmar_pali_text` | TEXT | Myanmar script Pāḷi |
+| `chinese_translation` | TEXT | Chinese translation where available |
+| `english_translation` | TEXT | English translation where available |
+| `english_translation_mark` | TEXT | translator initials / mark |
+
+Table-name suffixes: `_mul` = mūla, `_att` = aṭṭhakathā, `_tik` = ṭīkā, `_nrf` = non-canonical reference.
+
+**Diacritics in direct SQL.** The canon db stores NFC UTF-8 with native Pāḷi diacritics. Direct SQL `LIKE` must use the real characters (`ñ`, `ā`, `ṭ`, etc.). Example: `WHERE pali_text LIKE '%papañca%'` → hits correctly. `WHERE pali_text LIKE '%papanca%'` → 0 hits. The ASCII-stripping rule applies *only* to Calibre; never strip diacritics for canon SQL.
+
 → **Scratch** — append Phase 2 results: queries run, all human refs resolved, any empty-result gaps.
 
 #### EBC parallel-evidence pull
@@ -772,9 +890,60 @@ Pāḷi names in EBC use exact diacritics, same as the canon db. The overview-ca
 
 → **Scratch** — append the EBC pulls: parallel codes consulted, files read, any missing parallels logged as gaps.
 
+### Phase 2.5 — SuttaCentral offline parallel search
+
+**Run this phase when angle 16 (Cross-school / Āgama comparison) is applicable,**
+or whenever any Phase 2 Pāḷi canon hit warrants a quick parallel enrichment.
+
+For any sutta cited in Phase 2, run:
+
+```bash
+uv run tools/research_sources.py sc-parallels <uid>
+# e.g. sc-parallels mn18  or  sc-parallels sn35.28
+```
+
+This returns every known parallel from `parallels.json` (comprehensive coverage)
+plus text + translation where the offline archive holds them. Check `text_gaps` —
+if it is non-empty, the parallel exists but its text is not in the archive; log it
+as a known gap in Critical Gaps rather than silently omitting.
+
+For comparative/Āgama-focused questions, search the Chinese Āgama root texts directly:
+
+```bash
+uv run tools/research_sources.py sc-search "<term>" --lang lzh --limit 20
+uv run tools/research_sources.py sc-search "<term>" --lang san --limit 20
+```
+
+**Published-translation requirement.** Root text (`text_lzh`, `text_san`) is the
+primary source; a published English translation must accompany any quotation
+(Patton for MA, Bingenheimer for SA, BDK). If no published translation exists for
+a passage, paraphrase and label "(no published translation available)". Machine-translated
+Chinese is a reading aid for the agent only — never quote it as a translation.
+
+→ **Scratch** — append Phase 2.5 results: sc-parallels output per sutta, any text gaps logged.
+
 ### Phase 3 — Library search
 
+**Phase 3 preflight — check the library is reachable before querying:**
+
+```bash
+uv run tools/research_sources.py calibre-check
+```
+
+If this exits 1, the library is locked — typically by the Calibre desktop GUI or
+a parallel Vicaya agent. The message tells you which. Options: close the GUI,
+wait for the other agent to finish, or proceed without Calibre and note the gap.
+Do not silently return 0-hit results when the cause is a lock.
+
 The user's Calibre library is whole-library non-fiction (Buddhism, religion, psychology). The tag vocabulary is in `<repo>/data/calibre_tags.csv` (~2k tags).
+
+**Tag vocabulary first.** Before guessing technical terms, list the real tag vocabulary:
+```bash
+uv run tools/research_sources.py search-calibre "" --tags <candidate> --limit 1
+# Or: grep -i "<concept>" data/calibre_tags.csv
+```
+Pick the closest existing tag — don't invent terms like `Yogacara` if the library
+uses `Yogācāra` or `Consciousness-Only` instead. When in doubt, use the csv.
 
 Pick up to 3 tags relevant to the question (e.g. `Abhidhamma`, `Buddhism`, `Vipassana`, `Meditation`). Tag names are exact strings; matching is case- and diacritic-insensitive.
 
@@ -782,15 +951,34 @@ Pick up to 3 tags relevant to the question (e.g. `Abhidhamma`, `Buddhism`, `Vipa
 uv run tools/research_sources.py search-calibre "<term>" --tags Buddhism --limit 20
 ```
 
+**Parallel-agent note.** Calibre is single-process; concurrent Vicaya agents will
+hit lock contention mid-session (not just at the start). The helper automatically
+retries on lock errors with backoff, but persistent contention degrades to 0 results
+that look like "nothing found". If early queries succeed and later ones return 0 on
+terms that should match, the cause is likely lock contention, not vocabulary.
+Fallback: use book IDs from earlier hits to extract content directly with the
+format-appropriate tool (see below).
+
+**Format-agnostic extraction.** Books are in any format — PDF, epub, MOBI, doc,
+txt, AZW3, or others. Never assume epub. Per-format extraction:
+
+| Format | Command |
+|---|---|
+| PDF | `pdftotext /path/to/book.pdf -` |
+| epub | `unzip -o /path/to/book.epub -d /tmp/epub_extract && rg "<term>" /tmp/epub_extract/` |
+| Any format | `ebook-convert /path/to/book.<ext> /tmp/book.txt && rg "<term>" /tmp/book.txt` |
+
+`ebook-convert` (ships with Calibre) is the universal fallback. The book's Calibre
+path is in the metadata returned by `search-calibre` or from the library's folder.
+
+**`authors:` zero-hit fallback.** If a known author returns 0 via `authors:`, the
+query may have gone down a different path than title/FTS. Fall back: search by title
+keyword or a distinctive term from the book, and read the `authors` field from the
+returned hits. E.g. `search-calibre "Armstrong" --limit 5` then inspect `authors`.
+
 If FTS isn't ready (the helper handles this silently), you'll get metadata hits — book titles whose name/author/comments match. Still useful; note them as "potentially relevant reading" rather than quoting.
 
 If FTS *is* ready, snippets come back with each hit — quote them with book + author attribution.
-
-**epub fallback.** When FTS is unavailable and a specific epub is worth searching directly, extract it:
-```bash
-unzip -o /path/to/book.epub -d /tmp/epub_extract && rg "<term>" /tmp/epub_extract/
-```
-The book's Calibre path is in the metadata returned by `search-calibre`. Search the extracted html files with `rg`; paraphrase or quote the relevant passage with book + author attribution.
 
 #### Calibre search guidelines (library shape, read before searching)
 
@@ -1061,6 +1249,12 @@ The `cross-check` helper POSTs to OpenRouter (model list in `data/openrouter_mod
 If the review surfaces nothing substantive, move on without any acknowledgement in the note.
 
 ### Phase 7 — Write the note
+
+**The vault only receives complete notes.** The scratch dossier in `data/scratch/`
+holds the in-progress work. Phase 7 is the *finalization and transfer* step: take
+the comprehensive dossier, curate the strongest evidence into the structured note
+template below, and write the result to `$VICAYA_VAULT_PATH/Vicaya/` only when it
+is complete. Never write a partial or draft note to the vault.
 
 **Before writing, run this source-coverage check:**
 - Is every position from the perspective map represented by at least one block-quoted canon passage?
@@ -1374,7 +1568,7 @@ If fewer than 10, omit this section entirely.
 
 - **Helper raises `FileNotFoundError`**: a path is wrong — tell the user, don't fudge.
 - **Canon search returns 0 hits**: try lang="any" and/or broader book scope before giving up.
-- **Calibre returns 0 hits**: try fewer/looser tags. The user can always specify a tag for next time.
+- **Calibre returns 0 hits**: first distinguish empty from error — `calibre-check` exits 1 on a lock. If locked, note the gap and skip rather than retrying fruitlessly. If reachable and truly empty: try fewer/looser tags; check `data/calibre_tags.csv` for the right vocabulary; try `authors:` with a known authority. If early-session queries succeeded but mid-session queries return 0 with no lock, suspect parallel-agent contention — fall back to `pdftotext` or `ebook-convert` on already-known book IDs from earlier hits.
 - **`cross-check` returns `# SELF_REVIEW:`**: OpenRouter is unreachable. Run the embedded checklist on your own synthesis as described in Phase 6; do not retry the helper. Common root causes: no `OPENROUTER_API_KEY` set (check `.env`), an empty / malformed `data/openrouter_models.json`, or every free model in the chain simultaneously rate-limited (rare). (Note: the legacy `gemini-cross-check` subcommand returns a `# ERROR:` line on failure instead — same response: skip the section and continue.)
 - **Obsidian create fails**: print the rendered markdown to the terminal so the user can save it manually.
 - **PDF URL — WebFetch returns garbled or empty content**: WebFetch cannot decode PDF binary. Instead, save the file to a temp path and extract with `pdftotext`:

@@ -34,6 +34,23 @@ def _strip_diacritics(s: str) -> str:
     )
 
 
+import re as _re_top
+
+# CST text columns carry inline TEI/XML markup (<hi rend="...">, <pb/>, <note>, etc.)
+# Strip all tags, decode common entities, and collapse whitespace before returning hits.
+_XML_TAG_RE = _re_top.compile(r"<[^>]+>")
+_XML_ENTITY_MAP = {"&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&apos;": "'"}
+
+
+def _strip_xml(s: str) -> str:
+    if not s:
+        return s
+    out = _XML_TAG_RE.sub("", s)
+    for k, v in _XML_ENTITY_MAP.items():
+        out = out.replace(k, v)
+    return _re_top.sub(r"\s+", " ", out).strip()
+
+
 # ---------- Configuration ----------
 #
 # All user-specific paths are configurable via environment variables.
@@ -79,6 +96,7 @@ DEFAULT_GRETIL_PATH = _env_path(
     "VICAYA_GRETIL_PATH",
     "~/MyFiles/2_Resources/gretil",
 )
+DEFAULT_SC_DATA_PATH = _env_path("VICAYA_SC_DATA_PATH")
 
 # CST text-type suffix → label used in fallback citations.
 _TEXT_TYPE_LABELS: dict[str, str] = {
@@ -305,9 +323,9 @@ def search_canon(
                     CanonHit(
                         book_code=table,
                         paranum=str(paranum or ""),
-                        pali=pali or "",
-                        english=english or "",
-                        chinese=chinese or "",
+                        pali=_strip_xml(pali or ""),
+                        english=_strip_xml(english or ""),
+                        chinese=_strip_xml(chinese or ""),
                     )
                 )
                 if len(hits) >= limit:
@@ -455,6 +473,89 @@ def resolve_citation(
 # ---------- Calibre search ----------
 
 
+class CalibreUnavailable(RuntimeError):
+    """Calibre CLI call failed in a way distinct from "no results".
+
+    Common causes: library locked by the desktop GUI, another `calibredb`
+    process holding it, the binary missing, or a timeout. Callers can catch
+    this to retry, fall back, or surface a clear error rather than silently
+    treating it as zero hits.
+    """
+
+
+_CALIBRE_LOCK_HINTS = (
+    "another calibre",
+    "is being used by",
+    "is locked",
+    "database is locked",
+    "could not be opened",
+)
+
+
+def _is_calibre_lock_error(stderr: str) -> bool:
+    s = (stderr or "").lower()
+    return any(h in s for h in _CALIBRE_LOCK_HINTS)
+
+
+def _run_calibre(
+    cmd: list[str], timeout: int, retries: int = 3
+) -> subprocess.CompletedProcess:
+    """Run a calibredb command with retry/backoff on lock-style failures.
+
+    Raises CalibreUnavailable on persistent failure (timeout, missing binary,
+    or lock not released after retries). Returns the CompletedProcess on
+    success — an empty stdout is a legitimate "no results" answer, not an error.
+    """
+    import time
+    delay = 0.5
+    last_err = ""
+    for attempt in range(retries):
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        except FileNotFoundError as e:
+            raise CalibreUnavailable(f"calibredb not found: {e}") from e
+        except subprocess.TimeoutExpired as e:
+            last_err = f"timeout after {timeout}s"
+            if attempt + 1 < retries:
+                time.sleep(delay)
+                delay *= 2
+                continue
+            raise CalibreUnavailable(last_err) from e
+        if result.returncode == 0:
+            return result
+        last_err = (result.stderr or "").strip().splitlines()[-1:] or ["non-zero exit"]
+        last_err = last_err[0] if isinstance(last_err, list) else last_err
+        if _is_calibre_lock_error(result.stderr) and attempt + 1 < retries:
+            time.sleep(delay)
+            delay *= 2
+            continue
+        raise CalibreUnavailable(last_err)
+    raise CalibreUnavailable(last_err or "calibredb failed")
+
+
+def calibre_library_available(library: Path | None = None) -> tuple[bool, str]:
+    """Probe the Calibre library with a cheap call.
+
+    Returns (ok, message). `ok=False` means a search would fail right now —
+    typically because the GUI or another agent holds the lock. Callers (and
+    SKILL.md preflight) can use this before Phase 3 to give a clear message
+    instead of discovering the lock mid-phase.
+    """
+    library = library or DEFAULT_CALIBRE_LIBRARY
+    if library is None or not library.exists():
+        return False, f"library path not set or missing: {library}"
+    try:
+        _run_calibre(
+            ["calibredb", "list", "--limit", "1", "--for-machine",
+             "--fields", "id", "--library-path", str(library)],
+            timeout=15,
+            retries=1,
+        )
+        return True, "ok"
+    except CalibreUnavailable as e:
+        return False, str(e)
+
+
 def _calibre_fts_available(library: Path) -> bool:
     """Return True only if indexing is enabled AND complete (all books indexed).
 
@@ -497,6 +598,9 @@ def search_calibre(
     If FTS is enabled, run a full-text search; otherwise fall back to metadata search.
 
     Diacritics are stripped from the query — the Calibre library uses ASCII Pāḷi.
+
+    Raises CalibreUnavailable on a CLI error (e.g. library locked by the GUI
+    or another agent). An empty list means the search ran but matched nothing.
     """
     library = library or DEFAULT_CALIBRE_LIBRARY
     if library is None or not library.exists():
@@ -530,11 +634,8 @@ def _calibre_fts_search(
     tag_search = _build_tag_search(tags)
     if tag_search:
         cmd.extend(["--restrict-to", f"search:{tag_search}"])
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-    except subprocess.TimeoutExpired:
-        return []
-    if result.returncode != 0 or not result.stdout.strip():
+    result = _run_calibre(cmd, timeout=120)
+    if not result.stdout.strip():
         return []
     try:
         rows = json.loads(result.stdout)
@@ -579,11 +680,8 @@ def _calibre_metadata_search(
         "--library-path",
         str(library),
     ]
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-    except subprocess.TimeoutExpired:
-        return []
-    if result.returncode != 0 or not result.stdout.strip():
+    result = _run_calibre(cmd, timeout=60)
+    if not result.stdout.strip():
         return []
     try:
         rows = json.loads(result.stdout)
@@ -1036,6 +1134,219 @@ def search_sanskrit(
     return hits
 
 
+# ---------- SuttaCentral offline archive ----------
+#
+# Layout under VICAYA_SC_DATA_PATH:
+#   relationship/parallels.json          — list of {"parallels": [refs...]}.
+#     `~` prefix on a ref means "resemblance" (loose parallel).
+#     `#a.b-#c.d` suffix is a paragraph range.
+#   sc_bilara_data/root/<lang>/...       — root texts keyed "<uid>:<seg>" → text.
+#       langs: pli (Pāḷi), lzh (Literary Chinese / Āgamas), san, pra, en, misc.
+#   sc_bilara_data/translation/en/<author>/... — English translations, same keys.
+#
+# Coverage is partial: MA holds ~15 suttas, EA almost nothing, SA mostly present.
+# `sc_parallels` always reports what parallels.json says; text retrieval is
+# best-effort and explicitly flags missing texts in `text_gaps`.
+
+_SC_REF_RE = _re_top.compile(r"^([a-z-]+)(\d+(?:\.\d+)?)?")
+
+
+@dataclass
+class SCParallel:
+    ref: str                              # e.g. "ma115" or "ea40.10"
+    resemblance: bool = False             # True if listed with `~` prefix
+    paragraph_range: str = ""             # e.g. "16.1-18.1" if present, else ""
+    text_pali: str = ""
+    text_lzh: str = ""
+    text_san: str = ""
+    text_pra: str = ""
+    translation_en: str = ""
+    text_gaps: list[str] = None           # type: ignore[assignment]
+
+
+def _sc_parse_ref(raw: str) -> tuple[str, bool, str]:
+    """Split a parallels.json ref into (uid, resemblance, paragraph_range)."""
+    resemblance = raw.startswith("~")
+    body = raw.lstrip("~")
+    if "#" in body:
+        uid, _, prange = body.partition("#")
+    else:
+        uid, prange = body, ""
+    return uid.strip(), resemblance, prange.strip()
+
+
+def _sc_collection_for_uid(uid: str) -> str | None:
+    """Guess the collection folder for a uid (e.g. 'ma115' → 'ma', 'mn18' → 'mn')."""
+    m = _SC_REF_RE.match(uid)
+    if not m:
+        return None
+    return m.group(1).rstrip("-") or None
+
+
+def _sc_find_root_file(uid: str, lang: str, sc_root: Path) -> Path | None:
+    """Locate a root-text JSON file for a uid under root/<lang>/.
+
+    Tries the most common SC layout: sc_bilara_data/root/<lang>/<source>/sutta/<coll>/<uid>_*.json
+    and falls back to any *<uid>_root-<lang>*.json under root/<lang>/.
+    """
+    base = sc_root / "sc_bilara_data" / "root" / lang
+    if not base.exists():
+        return None
+    coll = _sc_collection_for_uid(uid)
+    candidates: list[Path] = []
+    if coll:
+        for parent in base.rglob(f"sutta/{coll}"):
+            candidates.extend(parent.glob(f"{uid}_root-{lang}-*.json"))
+            candidates.extend(parent.glob(f"{uid}_root-*.json"))
+    if not candidates:
+        candidates.extend(base.rglob(f"{uid}_root-{lang}-*.json"))
+        candidates.extend(base.rglob(f"{uid}_root-*.json"))
+    return candidates[0] if candidates else None
+
+
+def _sc_find_translation_file(uid: str, sc_root: Path, lang: str = "en") -> Path | None:
+    base = sc_root / "sc_bilara_data" / "translation" / lang
+    if not base.exists():
+        return None
+    matches = list(base.rglob(f"{uid}_translation-{lang}-*.json"))
+    return matches[0] if matches else None
+
+
+def _sc_read_segments(path: Path | None) -> str:
+    if path is None:
+        return ""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return ""
+    if not isinstance(data, dict):
+        return ""
+    return "\n".join(str(v).strip() for v in data.values() if str(v).strip())
+
+
+def _sc_load_parallels_index(sc_root: Path) -> dict[str, list[list[str]]]:
+    """Read parallels.json and index by bare uid for cheap lookup."""
+    path = sc_root / "relationship" / "parallels.json"
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    index: dict[str, list[list[str]]] = {}
+    for entry in data:
+        refs = entry.get("parallels") if isinstance(entry, dict) else None
+        if not isinstance(refs, list):
+            continue
+        for raw in refs:
+            uid, _, _ = _sc_parse_ref(raw)
+            index.setdefault(uid, []).append(refs)
+    return index
+
+
+def sc_parallels(
+    citation: str,
+    sc_root: Path | None = None,
+    include_text: bool = True,
+) -> list[SCParallel]:
+    """Look up parallels for a SuttaCentral-style citation (e.g. 'mn18').
+
+    Returns one SCParallel per parallel ref *other than* the query itself.
+    parallels.json coverage is comprehensive; text retrieval is best-effort —
+    the archive holds only a partial sample of Chinese Āgamas, so unread
+    languages are recorded in `text_gaps` rather than silently omitted.
+
+    `citation` is normalised (lowercased, whitespace stripped). On unknown
+    archive path or empty match, returns [].
+    """
+    sc_root = sc_root or DEFAULT_SC_DATA_PATH
+    if sc_root is None or not sc_root.exists():
+        return []
+    target = (citation or "").strip().lower()
+    if not target:
+        return []
+    index = _sc_load_parallels_index(sc_root)
+    groups = index.get(target, [])
+    out: list[SCParallel] = []
+    seen: set[str] = set()
+    for refs in groups:
+        for raw in refs:
+            uid, resemblance, prange = _sc_parse_ref(raw)
+            if uid == target or uid in seen:
+                continue
+            seen.add(uid)
+            parallel = SCParallel(
+                ref=uid,
+                resemblance=resemblance,
+                paragraph_range=prange,
+                text_gaps=[],
+            )
+            if include_text:
+                for lang, attr in (("pli", "text_pali"), ("lzh", "text_lzh"),
+                                   ("san", "text_san"), ("pra", "text_pra")):
+                    if _sc_collection_for_uid(uid) is None:
+                        continue
+                    p = _sc_find_root_file(uid, lang, sc_root)
+                    if p is None:
+                        continue
+                    setattr(parallel, attr, _sc_read_segments(p))
+                t = _sc_find_translation_file(uid, sc_root, "en")
+                parallel.translation_en = _sc_read_segments(t)
+                if not any([parallel.text_pali, parallel.text_lzh,
+                            parallel.text_san, parallel.text_pra]):
+                    parallel.text_gaps.append(
+                        "no root text in offline archive"
+                    )
+                if not parallel.translation_en:
+                    parallel.text_gaps.append("no en translation in offline archive")
+            out.append(parallel)
+    return out
+
+
+def sc_search(
+    query: str,
+    lang: str = "pli",
+    sc_root: Path | None = None,
+    limit: int = 20,
+) -> list[VaultHit]:
+    """Fixed-string grep across SuttaCentral root texts in one language.
+
+    `lang` is the directory under `sc_bilara_data/root/` (pli, lzh, san, pra,
+    en, misc). Returns VaultHit-shaped results (path + snippet + line). Hits
+    files holding JSON segment dicts — the snippet is the matched line as-is.
+    """
+    sc_root = sc_root or DEFAULT_SC_DATA_PATH
+    if sc_root is None or not sc_root.exists():
+        return []
+    root = sc_root / "sc_bilara_data" / "root" / lang
+    if not root.exists():
+        return []
+    cmd = ["grep", "-rn", "-F", "-a", "--include=*.json", "--", query, str(root)]
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+    except subprocess.TimeoutExpired:
+        return []
+    if result.returncode > 1:
+        return []
+    hits: list[VaultHit] = []
+    for line in result.stdout.splitlines():
+        parts = line.split(":", 2)
+        if len(parts) < 3:
+            continue
+        hit_path, lineno, text = parts
+        snippet = text.strip()
+        if len(snippet) > 300:
+            snippet = snippet[:297] + "..."
+        try:
+            line_int: int | None = int(lineno)
+        except ValueError:
+            line_int = None
+        hits.append(VaultHit(path=hit_path, snippet=snippet, line=line_int))
+        if len(hits) >= limit:
+            break
+    return hits
+
+
 # ---------- Gemini cross-check ----------
 
 
@@ -1360,6 +1671,24 @@ def _cli() -> int:
                      help="Restrict to a subfolder of the GRETIL corpus (e.g. '1_veda').")
     pss.add_argument("--limit", type=int, default=20)
 
+    pca = sub.add_parser("calibre-check",
+                         help="Probe the Calibre library; reports ok or the specific failure "
+                              "(e.g. locked by GUI or another agent). Use as a Phase 3 preflight.")
+
+    psp = sub.add_parser("sc-parallels",
+                         help="SuttaCentral offline archive: list parallels for a citation "
+                              "(e.g. 'mn18') and return text + en translation where present.")
+    psp.add_argument("citation")
+    psp.add_argument("--no-text", action="store_true",
+                     help="Skip text retrieval; report parallel refs only.")
+
+    pscs = sub.add_parser("sc-search",
+                          help="Fixed-string grep across SuttaCentral offline root texts.")
+    pscs.add_argument("query")
+    pscs.add_argument("--lang", default="pli",
+                      help="Root-text language: pli, lzh (Chinese Āgamas), san, pra, en, misc.")
+    pscs.add_argument("--limit", type=int, default=20)
+
     args = p.parse_args()
 
     if args.cmd == "search-vault":
@@ -1405,6 +1734,14 @@ def _cli() -> int:
         _dump(search_ebc(args.query, folder=args.folder, limit=args.limit))
     elif args.cmd == "search-sanskrit":
         _dump(search_sanskrit(args.query, folder=args.folder, limit=args.limit))
+    elif args.cmd == "calibre-check":
+        ok, msg = calibre_library_available()
+        _dump({"ok": ok, "message": msg})
+        return 0 if ok else 1
+    elif args.cmd == "sc-parallels":
+        _dump(sc_parallels(args.citation, include_text=not args.no_text))
+    elif args.cmd == "sc-search":
+        _dump(sc_search(args.query, lang=args.lang, limit=args.limit))
     return 0
 
 
