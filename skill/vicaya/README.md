@@ -67,8 +67,14 @@ All user-specific paths live in `.env` at the repo root. Copy `.env.example` to
 
 ## Known limitations
 
-- **Calibre FTS** takes a long time to index a large library. Until ready,
-  Calibre search is metadata-only. The skill degrades gracefully.
+- **Calibre FTS** takes a long time to index a large library (days for ~14 000
+  books). Until ready, Calibre search is metadata-only. The skill degrades
+  gracefully. To enable indexing: open Calibre, click the **FT** button at the
+  left edge of the search bar, and select **Enable indexing for this library**.
+  Leave Calibre open while indexing runs — it pauses on quit and resumes on
+  relaunch. Once the index is built, Calibre does not need to be open for
+  searches. Note: the old `Preferences → Searching → Full text search` path was
+  removed in Calibre 9; use the **FT** button instead.
 - **Citation human-refs** for canon are currently piṭaka/nikāya/paranum level
   (e.g. `MN 02 §23`). Full sutta-name resolution is a follow-up.
 - **YouTube auto-captions** mishear Pāḷi terms. The skill paraphrases auto-

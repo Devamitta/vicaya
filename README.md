@@ -50,6 +50,55 @@ Each source is optional — if the tool or path isn't configured it is silently 
 
 Full setup notes are in [`skill/vicaya/SKILL.md`](skill/vicaya/SKILL.md).
 
+### Calibre full-text search (optional but recommended)
+
+The skill always searches Calibre book metadata. To also search inside book
+content (EPUB/PDF), enable FTS indexing once:
+
+1. Open Calibre with your library.
+2. Click the **FT** button at the left edge of the search bar.
+3. Select **Enable indexing for this library**.
+4. Leave Calibre open while indexing runs — large libraries take several days.
+   Indexing pauses on quit and resumes next time you open Calibre.
+
+Calibre does not need to be open for the skill to *search* once the index is
+built. It only needs to be open while the initial indexing is in progress.
+
+| Scenario | Calibre GUI needed? |
+|---|---|
+| FTS indexing is running | **Yes** — indexing only runs while the GUI is open |
+| Searching after index is built | No — `calibredb fts_search` queries the stored index directly |
+| Metadata search (no FTS) | No |
+
+> Note: The old path `Preferences → Searching → Full text search` was removed
+> in Calibre 9. Use the **FT** button in the search bar instead.
+
+| Platform | `calibredb` path after Calibre install |
+|---|---|
+| macOS | Added to PATH automatically by the Calibre installer |
+| Linux (AppImage) | `~/.local/bin/calibredb` or wherever you extracted the AppImage |
+| Linux (apt/rpm) | `/usr/bin/calibredb` |
+| Windows | Added to PATH by the installer; may need a new terminal after install |
+
+### Obsidian CLI
+
+The `obsidian` command is part of the Obsidian desktop app — install Obsidian
+from https://obsidian.md and the CLI comes with it.
+
+**The desktop app must be running** when the skill executes. If it is not open,
+vault search and note creation are disabled (the skill falls back to writing
+the note directly to the vault folder, which Obsidian indexes on next launch).
+
+To start Obsidian silently in the background before running the skill:
+
+| Platform | Command |
+|---|---|
+| macOS | `open -a Obsidian` |
+| Linux | `setsid obsidian </dev/null >/dev/null 2>&1 &` |
+| Windows | `Start-Process obsidian` |
+
+Verify the CLI is reachable: `obsidian version`
+
 ---
 
 ## Autonomous agent setup
@@ -95,6 +144,21 @@ npm install -g @google/gemini-cli   # or follow https://github.com/google-gemini
 
 The `obsidian` CLI is bundled with the Obsidian desktop app on some platforms.
 Check `which obsidian`; if missing, the vault search source is disabled.
+
+### Runtime requirements
+
+Some sources require a desktop application to be open:
+
+| Source | Requirement | Impact if not running |
+|---|---|---|
+| **Obsidian vault** | Obsidian desktop app must be running | Vault search and note-write are disabled; note is written directly to disk instead |
+| **Calibre FTS** | Calibre must be open *during initial indexing only* | Indexing pauses; once index is built, Calibre does not need to be open for searches |
+
+Tell the user about these requirements after setup is complete. Specifically:
+- If `VICAYA_VAULT_PATH` is configured: remind them to keep Obsidian open when
+  running `/vicaya`.
+- If `VICAYA_CALIBRE_LIBRARY` is configured: walk them through the FT button
+  steps above and tell them to leave Calibre open until indexing finishes.
 
 ### 1 — Python environment
 
