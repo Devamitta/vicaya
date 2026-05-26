@@ -26,12 +26,20 @@ These rules apply to every run, by every agent. They are part of the skill, not 
 
 ## Inputs
 
-- **Topic / question** (required): the research question, in the user's words.
+- **Topic / question** (required): the user's original research request; Phase 0 preserves it and derives a polished research question.
 - **Optional references** the user passed in: URLs, vault note names, book titles, sutta refs. Treat these as authoritative seeds.
 
 ### Question sanitization
 
-Before using the topic as the note's `topic:` field value, smooth it into a proper English sentence or question: complete grammar, correct punctuation, question mark where the phrasing calls for one. Remove any loaded or leading language — preconceived conclusions, partisan framing, or strong opinions should not be baked into the question itself. Keep the original scope and intent intact. The research body is where findings and positions are reported; the question just names the topic neutrally. Record the verbatim user input only in the run reflection's `question:` field.
+Before using the topic as the note's `topic:` field value or the final note's
+`## Question`, smooth it into a proper English sentence or question: complete
+grammar, correct punctuation, question mark where the phrasing calls for one.
+Remove any loaded or leading language — preconceived conclusions, partisan
+framing, or strong opinions should not be baked into the question itself. Keep
+the original scope and intent intact. The research body is where findings and
+positions are reported; the question just names the topic neutrally. Preserve
+the verbatim user input only in the scratchpad and run reflection as
+`question_original:`.
 
 ## Setup — paths and tools
 
@@ -245,7 +253,10 @@ Use the same slug you'll use for the vault note. Initialise with this structure:
 
 ```markdown
 # Vicaya dossier — YYYY-MM-DD
-**Question:** <question>
+**Question original:** <verbatim user request>
+**Question polished:** <clean research question used in the final note>
+**Scope assumptions:** <inferred textual scope, interpretive scope, depth, practical angle, and seed sources>
+**Ambiguity status:** <clear|minor_uncertainty|unclear>
 **Slug:** <slug>
 **Vault note:** (path set at Phase 7 start)
 
@@ -728,9 +739,48 @@ and mark as "(no published translation; summary from Chinese source)".
 or an explicit statement of doctrinal divergence between Pāḷi and Āgama versions
 with both sides cited.
 
-### Phase 0 — Scope check
+### Phase 0 — Request understanding and scope check
 
-Ask the user these five questions before doing anything else. Present them together in a single message — don't ask one at a time. Wait for the response, then carry the answers into Phase 1.
+Before research, convert the user's request into a clean research question.
+Always create these working fields in the scratchpad:
+
+- `question_original`: the user's exact wording.
+- `question_polished`: a grammatical, neutral, complete research question.
+- `scope_assumptions`: inferred textual scope, interpretive scope, depth,
+  practical angle, and seed sources.
+- `ambiguity_status`: `clear`, `minor_uncertainty`, or `unclear`.
+
+The `question_polished` is the question used in the final vault note. The
+original request is preserved only in scratch/reflection metadata, not as the
+displayed `## Question`.
+
+If the request is clear and specific enough that misunderstanding is unlikely,
+do not ask for confirmation. Proceed directly to Phase 1 using `question_polished`.
+
+If there is any realistic ambiguity, speech-to-text corruption, unclear scope,
+unclear tradition, unclear source layer, unclear depth, or unclear seed
+reference, stop and ask for confirmation before research. Rephrase the request
+and list the assumptions:
+
+```text
+I understand the research question as:
+
+<question_polished>
+
+Assumptions:
+- Textual scope: <mūla/commentary/both/other>
+- Interpretive scope: <neutral map / named dispute / named teacher>
+- Depth: <full note / focused answer>
+- Practical angle: <included/excluded>
+- Seeds: <texts/scholars/notes inferred>
+
+Please confirm or correct this before I begin.
+```
+
+Ask the five detailed scope questions only when the uncertainty cannot be
+resolved by a simple confirmation request. Present them together in a single
+message — don't ask one at a time. Wait for the response, then carry the answers
+into Phase 1.
 
 1. **Textual scope** — Are you asking about the mūla (root canon), the commentarial tradition, or both? Any particular Nikāya or text?
 2. **Interpretive dispute** — Is there a specific school, teacher, or scholarly debate you want foregrounded, or should the note map the main positions neutrally?
@@ -738,7 +788,9 @@ Ask the user these five questions before doing anything else. Present them toget
 4. **Practical angle** — Do you want the note to connect the topic to practice and modern teachers, or keep it primarily textual/scholarly?
 5. **Seeds** — Any specific suttas, scholars, books, or vault notes you already know are relevant?
 
-If the question already answers most of these (e.g. `/vicaya the cessationist vs. realist readings of Nibbāna in the commentaries`) skip the questions and proceed directly to Phase 1 — don't ask for confirmation the user doesn't need.
+If the question already answers most of these (e.g. `/vicaya the cessationist
+vs. realist readings of Nibbāna in the commentaries`) skip the questions and
+proceed directly to Phase 1 — don't ask for confirmation the user doesn't need.
 
 ### Phase 1 — Vault context
 
@@ -1445,7 +1497,7 @@ Render the final markdown. Use this template as a structural guide — expand ev
 ```markdown
 ---
 date: YYYY-MM-DD
-topic: <one-line topic>
+topic: <question_polished or concise neutral topic derived from it>
 tool: "https://github.com/bdhrs/vicaya"
 agent: "<Model family + version, e.g. Claude Opus 4.7 (claude-opus-4-7)>"
 tags:
@@ -1463,7 +1515,7 @@ web_refs:
 # <Topic title>
 
 ## Question
-<the user's question, verbatim>
+<question_polished>
 
 ## Findings
 <the synthesised answer, with inline citations>
@@ -1948,7 +2000,8 @@ Use the filename format `YYYYMMDD-HHMMSS.md` (UTC). Template:
 ```markdown
 ---
 date: <YYYY-MM-DD>
-question: <verbatim user question, one line>
+question_original: <verbatim user request, one line>
+question_polished: <clean research question used in the final note>
 note_path: <path of the saved research note>
 duration_min: <approximate>
 ---
