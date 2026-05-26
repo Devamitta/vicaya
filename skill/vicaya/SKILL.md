@@ -1752,10 +1752,12 @@ print(f"PDF → {pdf_out}")
 Replace `<TODAY>` and `<SLUG>` with the actual values used when writing the note.
 Include the PDF path in the Section 1 run summary if generation succeeded.
 
-### GitHub push (run after successful PDF generation)
+### GitHub push (user-triggered)
 
-After PDF generation, push the new note to `bdhrs/vicaya-notes` so collaborators
-receive it automatically. Derive the repo path from the already-loaded `vault_path`:
+After the note is written and the final report is shown, ask the user using `AskUserQuestion`:
+"Should I push this note to GitHub (`bdhrs/vicaya-notes`)?" with options **Yes** / **No**.
+
+**If Yes**, run:
 
 ```python
 import subprocess
@@ -1767,11 +1769,12 @@ try:
     subprocess.run(["git", "-C", notes_repo, "push", "origin", "HEAD"], check=True, capture_output=True)
     print(f"GitHub → pushed {note_filename}")
 except Exception as e:
-    print(f"GitHub push skipped: {e}")
+    print(f"GitHub push failed: {e}")
 ```
 
-Add the result (`GitHub → pushed …` or `GitHub push skipped: …`) to the Section 1
-run summary. A push failure is never fatal — the note is already saved to the vault.
+**If No**, leave the note uncommitted and tell the user it is saved to the vault only.
+
+A push failure is never fatal — the note is already saved to the vault.
 
 ## Final report to the user
 
