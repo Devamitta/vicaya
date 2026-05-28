@@ -13,12 +13,14 @@ Empty lists on no-results. Raises on tool-missing.
 
 from __future__ import annotations
 
+import fcntl
 import fnmatch
 import json
 import os
 import sqlite3
 import subprocess
 import unicodedata
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -491,10 +493,65 @@ _CALIBRE_LOCK_HINTS = (
     "could not be opened",
 )
 
+_CALIBRE_LOCK_FILE = Path("/tmp/vicaya-calibre.lock")
+
 
 def _is_calibre_lock_error(stderr: str) -> bool:
     s = (stderr or "").lower()
     return any(h in s for h in _CALIBRE_LOCK_HINTS)
+
+
+@contextmanager
+def _calibre_serialize(warn_after: float = 30.0, give_up_after: float = 120.0):
+    """Cross-process mutex so concurrent vicaya agents don't collide on calibredb.
+
+    calibredb refuses to run if another calibredb (or the Calibre GUI) is active.
+    An OS-level flock on a shared sentinel file queues agents fairly — the lock
+    is released automatically if a holder crashes.
+
+    Non-blocking poll loop so we can:
+      - log the holding PID to stderr once we've waited > `warn_after` seconds,
+        making contention visible rather than silent;
+      - raise CalibreUnavailable after `give_up_after` seconds rather than
+        hanging forever if calibredb is genuinely stuck.
+    """
+    import sys
+    import time
+    _CALIBRE_LOCK_FILE.touch(exist_ok=True)
+    with open(_CALIBRE_LOCK_FILE, "r+") as fh:
+        start = time.monotonic()
+        warned = False
+        while True:
+            try:
+                fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                waited = time.monotonic() - start
+                if waited > give_up_after:
+                    holder = (fh.read() or "").strip() or "unknown"
+                    raise CalibreUnavailable(
+                        f"calibredb lock held by PID {holder} for >{give_up_after:.0f}s; giving up"
+                    )
+                if not warned and waited > warn_after:
+                    fh.seek(0)
+                    holder = (fh.read() or "").strip() or "unknown"
+                    print(
+                        f"[vicaya] waiting on calibredb lock held by PID {holder} "
+                        f"(>{warn_after:.0f}s)…",
+                        file=sys.stderr,
+                    )
+                    warned = True
+                time.sleep(0.25)
+        try:
+            fh.seek(0)
+            fh.truncate()
+            fh.write(str(os.getpid()))
+            fh.flush()
+            yield
+        finally:
+            fh.seek(0)
+            fh.truncate()
+            fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
 
 
 def _run_calibre(
@@ -509,28 +566,29 @@ def _run_calibre(
     import time
     delay = 0.5
     last_err = ""
-    for attempt in range(retries):
-        try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-        except FileNotFoundError as e:
-            raise CalibreUnavailable(f"calibredb not found: {e}") from e
-        except subprocess.TimeoutExpired as e:
-            last_err = f"timeout after {timeout}s"
-            if attempt + 1 < retries:
+    with _calibre_serialize():
+        for attempt in range(retries):
+            try:
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+            except FileNotFoundError as e:
+                raise CalibreUnavailable(f"calibredb not found: {e}") from e
+            except subprocess.TimeoutExpired as e:
+                last_err = f"timeout after {timeout}s"
+                if attempt + 1 < retries:
+                    time.sleep(delay)
+                    delay *= 2
+                    continue
+                raise CalibreUnavailable(last_err) from e
+            if result.returncode == 0:
+                return result
+            last_err = (result.stderr or "").strip().splitlines()[-1:] or ["non-zero exit"]
+            last_err = last_err[0] if isinstance(last_err, list) else last_err
+            if _is_calibre_lock_error(result.stderr) and attempt + 1 < retries:
                 time.sleep(delay)
                 delay *= 2
                 continue
-            raise CalibreUnavailable(last_err) from e
-        if result.returncode == 0:
-            return result
-        last_err = (result.stderr or "").strip().splitlines()[-1:] or ["non-zero exit"]
-        last_err = last_err[0] if isinstance(last_err, list) else last_err
-        if _is_calibre_lock_error(result.stderr) and attempt + 1 < retries:
-            time.sleep(delay)
-            delay *= 2
-            continue
-        raise CalibreUnavailable(last_err)
-    raise CalibreUnavailable(last_err or "calibredb failed")
+            raise CalibreUnavailable(last_err)
+        raise CalibreUnavailable(last_err or "calibredb failed")
 
 
 def calibre_library_available(library: Path | None = None) -> tuple[bool, str]:
@@ -565,12 +623,13 @@ def _calibre_fts_available(library: Path) -> bool:
     Indexing is complete when N == TOTAL.
     """
     try:
-        result = subprocess.run(
-            ["calibredb", "fts_index", "status", "--library-path", str(library)],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
+        with _calibre_serialize():
+            result = subprocess.run(
+                ["calibredb", "fts_index", "status", "--library-path", str(library)],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
     except subprocess.TimeoutExpired:
         return False
     if result.returncode != 0:
