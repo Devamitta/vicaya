@@ -9,6 +9,8 @@ from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
+from rich import print as rprint
+
 
 project_root = Path(__file__).resolve().parent.parent
 GitRunner = Callable[[list[str], Path], subprocess.CompletedProcess]
@@ -69,23 +71,18 @@ def is_dirty_rebase_error(exc: subprocess.CalledProcessError) -> bool:
     )
 
 
-def pull_rebase_with_dirty_fallback(
+def pull_rebase(
     repo_path: Path, remote: str, branch: str, runner: GitRunner
 ) -> None:
     try:
         runner(["pull", "--rebase", remote, branch], repo_path)
-        return
     except subprocess.CalledProcessError as exc:
-        if not is_dirty_rebase_error(exc):
-            raise
-
-    print("dirty worktree; stashing and retrying...", end=" ")
-    runner(
-        ["stash", "push", "--include-untracked", "-m", "sync_run_report: pre-pull stash"],
-        repo_path,
-    )
-    runner(["pull", "--rebase", remote, branch], repo_path)
-    runner(["stash", "pop"], repo_path)
+        if is_dirty_rebase_error(exc):
+            rprint(
+                "[red]Dirty worktree: commit or stash your other changes "
+                "before syncing run reports.[/red]"
+            )
+        raise
 
 
 def porcelain_path(line: str) -> str:
@@ -122,47 +119,47 @@ def sync_latest_report(
 
     user = env.get("VICAYA_USER") or os.environ.get("VICAYA_USER")
     if not user:
-        print("Error: VICAYA_USER not found in .env")
+        rprint("[red]Error: VICAYA_USER not found in .env[/red]")
         return 1
 
     target = target_remote_and_branch(user, repo_path, run_git)
     if target is None:
-        print("Error: No upstream configured for current branch; set one before syncing reports.")
+        rprint("[red]Error: No upstream configured for current branch; set one before syncing reports.[/red]")
         return 1
 
     remote, branch = target
 
     try:
-        print("Git pull --rebase...", end=" ")
-        pull_rebase_with_dirty_fallback(repo_path, remote, branch, run_git)
-        print("ok")
+        rprint("[cyan]Git pull --rebase...[/cyan]", end=" ")
+        pull_rebase(repo_path, remote, branch, run_git)
+        rprint("[green]ok[/green]")
 
         report_rels = uncommitted_today_reports(repo_path, run_git, today)
         if not report_rels:
-            print(f"No uncommitted run reports for {today}; no push needed.")
+            rprint(f"[yellow]No uncommitted run reports for {today}; no push needed.[/yellow]")
             return 0
 
-        print(f"Git add {len(report_rels)} run report(s)...", end=" ")
+        rprint(f"[cyan]Git add {len(report_rels)} run report(s)...[/cyan]", end=" ")
         run_git(["add", *report_rels], repo_path)
-        print("ok")
+        rprint("[green]ok[/green]")
 
         status = run_git(["status", "--porcelain", "--", *report_rels], repo_path)
         if not status.stdout.strip():
-            print(f"Run reports for {today} already synced; no push needed.")
+            rprint(f"[yellow]Run reports for {today} already synced; no push needed.[/yellow]")
             return 0
 
-        print("Git commit...", end=" ")
+        rprint("[cyan]Git commit...[/cyan]", end=" ")
         run_git(["commit", "-m", f"chore: update runs {user}"], repo_path)
-        print("ok")
+        rprint("[green]ok[/green]")
 
-        print(f"Git push {remote} HEAD:{branch}...", end=" ")
+        rprint(f"[cyan]Git push {remote} HEAD:{branch}...[/cyan]", end=" ")
         run_git(["push", remote, f"HEAD:{branch}"], repo_path)
-        print("ok")
-        print(f"Successfully synced {len(report_rels)} run report(s) for {today}")
+        rprint("[green]ok[/green]")
+        rprint(f"[green]Successfully synced {len(report_rels)} run report(s) for {today}[/green]")
         return 0
     except subprocess.CalledProcessError as exc:
-        print("failed")
-        print(f"Git command failed: git {' '.join(str(part) for part in exc.cmd)}")
+        rprint("[red]failed[/red]")
+        rprint(f"[red]Git command failed: git {' '.join(str(part) for part in exc.cmd)}[/red]")
         if exc.stdout:
             print(exc.stdout)
         if exc.stderr:
