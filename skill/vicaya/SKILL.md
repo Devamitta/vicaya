@@ -14,7 +14,7 @@ Four structural commands carry the run. Everything else is reference.
 1. **Phase 0:** `scratch-init <slug>` and `export VICAYA_SCRATCH=…` + `export VICAYA_PHASE=0`. Every helper call from now on auto-logs to scratch.
 2. **Each phase boundary:** end the prior phase with `scratch-gate <prev-phase>`, then `export VICAYA_PHASE=<new-phase>` **before** any helper call in the new phase (otherwise auto-log attributes entries to the old phase). The gate refuses if earlier gates are missing and prints the exact evidence still needed.
 3. **Start of Phase 5:** `scratch-verify`. Exit 0 = proceed to synthesis. Exit 1 = backfill the named phase first; do not draft.
-4. **End of Phase 7:** `scratch-gate 7`. The run is not complete without it.
+4. **End of Phase 7:** `scratch-gate 7`, then publish the run report with `uv run scripts/sync_run_report.py`. The run is not complete without both.
 
 If context compaction fires at any point, `scratch-resume <slug>` prints the last gate and the next phase — no findings are lost.
 
@@ -1770,7 +1770,7 @@ uv run scripts/sync_notes.py "Vicaya/${today} - ${slug}.md"
 
 A sync failure is never fatal — the note is already saved to the vault.
 
-→ **Phase 7 exit:** `scratch-gate 7`. The run is not complete without this — it confirms the vault path and PDF path are recorded in the dossier.
+→ **Phase 7 exit:** `scratch-gate 7`, then `uv run scripts/sync_run_report.py`. The run is not complete without both — the gate confirms the vault path and PDF path are recorded in the dossier, and the sync publishes the latest `runs/*.md` report.
 
 ## Final report to the user
 
@@ -1967,6 +1967,16 @@ duration_min: <approximate>
 
 Be terse. Three bullets per section max. If a section is empty, write "nothing" — don't
 delete the heading. These files are the input to periodic skill-tuning passes.
+
+### Step 1b — Publish the run report
+
+After writing the reflection, run:
+
+```bash
+uv run scripts/sync_run_report.py
+```
+
+This publishes the latest `runs/*.md` report. The run is not complete until this command has been run.
 
 After writing the reflection, apply any concrete `Channel tuning` decisions directly to
 `data/youtube_channels.md`. Promotions and demotions are how the channel allowlist gets
