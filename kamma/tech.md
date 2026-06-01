@@ -8,10 +8,12 @@
 - **Vault I/O:** Obsidian CLI v1.12.7+ (subcommand-style; requires desktop app running)
 - **Library search:** `calibredb` (Calibre 9+); metadata search always, FTS when indexed
 - **YouTube:** `yt-dlp` for search, `youtube-transcript-api` for transcript fetch
+- **Note validation:** `scripts/validate_note.py` uses `tools/note_checks.py` for final-note mechanical checks
+- **PDF generation:** `scripts/generate_note_pdf.py` renders optional final-note PDFs with `markdown` and `weasyprint`
 - **Web:** `WebSearch` / `WebFetch` (Claude Code built-ins)
 - **Cross-check:** `cross_check()` POSTs to OpenRouter (model list in `data/openrouter_models.json` — server-side fallback via the `models: [...]` field, cap 3). Current lead: `deepseek/deepseek-v4-flash` (paid, ~22s, ~$0.0001/call); free `gpt-oss-120b:free` as outage backup. On any failure returns a `# SELF_REVIEW:` sentinel so the calling agent runs the Phase 6 checklist on its own synthesis. Stdlib `urllib`; no SDK dep. Key from `OPENROUTER_API_KEY` env / `.env`, or `~/.local/share/opencode/auth.json` → `.openrouter.key`.
 - **Sanskrit search:** `grep -rn -F --include="*.htm"` across a local GRETIL corpus (shallow clone of `wujastyk/GRETIL-mirror`). Unicode IAST `.htm` files; no new dependencies.
-- **Tests:** pytest
+- **Validation:** pytest, ruff, pyright, pyrefly
 
 ## Constraints
 - All paths are per-machine; configured via `.env` (not committed). See `.env.example`.
@@ -26,6 +28,7 @@
 - DPD DB: `<dpd-db>/dpd.db` — used by `resolve_citation` to map CST codes → human refs via `sutta_info` table
 - CST book translator: `<dpd-db>/tools/cst_book_translator.py` + `.tsv` — used by `lookup_book` to translate between cst_filename / SQLite table name / Pāḷi title / gui code / DPD code. Live-imported via file path.
 - Vault: path in `$VICAYA_VAULT_PATH`, vault name `$VICAYA_VAULT_NAME`
+- Optional PDF output: path in `$VICAYA_PDF_PATH`
 - Calibre library: path in `$VICAYA_CALIBRE_LIBRARY`
 - YouTube cache: `data/youtube_cache/` (gitignored, grows over time)
 - Channel allowlist: `data/youtube_channels.md`
