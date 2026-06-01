@@ -14,6 +14,9 @@ verification feature.
 | #2 Calibre lock / multi-agent contention | done | `fix: serialize concurrent calibredb calls with cross-process flock` |
 | #4 Cross-check AI hallucinations | done | `feat: verify Pāḷi citations from cross-check output against dpd.db sutta_info` |
 | Chinese column always emitted in canon hits (user request, mid-session) | done | Same commit as #1 |
+| Thematic runs forced to hand-skip Phase 2.5 / 3b gates (5 unprocessed runs) | done | `scratch-init --class thematic` auto-skips 2.5/3b in `scratch_gate` |
+| `VICAYA_SCRATCH`/`VICAYA_PHASE` re-export tax every Bash call (3 unprocessed runs) | done | `data/scratch/.active` state file; `scratch-gate` auto-advances phase |
+| `calibre-check` "ok" while `search-calibre` dies on GUI lock (3 unprocessed runs) | done | `calibre-check` runs the real search path; `search-calibre` returns a structured `unavailable` sentinel |
 
 ## Remaining — prioritized
 
