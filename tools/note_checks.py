@@ -1,4 +1,9 @@
-"""Validate Vicaya final notes and resolve note paths for Phase 7 scripts."""
+"""Validate Vicaya final notes and resolve note paths for Phase 7 scripts.
+
+Not a general YAML validator: the frontmatter checks are line-based and
+conservative, catching only known note-shape hazards (unquoted colon-space
+scalars, annotated URLs, YAML-mapping-style list items, missing fields).
+"""
 
 from __future__ import annotations
 
@@ -56,6 +61,20 @@ def resolve_note_path(note_arg: str, vault_path: Path) -> Path:
     return vault_path.expanduser() / "Vicaya" / note_path
 
 
+def resolve_existing_note(note_arg: str, env: dict[str, str]) -> Path:
+    raw_path = Path(note_arg).expanduser()
+    if raw_path.is_absolute():
+        note_path = raw_path
+    else:
+        vault_path = env.get("VICAYA_VAULT_PATH", "").strip()
+        if not vault_path:
+            raise ValueError("VICAYA_VAULT_PATH is required for relative note paths")
+        note_path = resolve_note_path(note_arg, Path(vault_path))
+    if not note_path.exists():
+        raise OSError(f"note not found: {note_path}")
+    return note_path
+
+
 def extract_frontmatter(text: str) -> tuple[str, str]:
     if not text.startswith("---\n"):
         return "", text
@@ -92,7 +111,7 @@ def validate_note_text(text: str) -> list[ValidationIssue]:
 def _validate_frontmatter(frontmatter: str, issues: list[ValidationIssue]) -> None:
     fields = _parse_frontmatter(frontmatter)
     tool = fields["scalars"].get("tool")
-    if _strip_quotes(tool[0]) != TOOL_URL if tool else True:
+    if tool is None or _strip_quotes(tool[0]) != TOOL_URL:
         issues.append(
             ValidationIssue(
                 "invalid-tool",

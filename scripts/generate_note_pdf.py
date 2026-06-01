@@ -46,7 +46,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     try:
-        note_path = _resolve_note_arg(note_arg, env)
+        note_path = note_checks.resolve_existing_note(note_arg, env)
         pdf_dir = Path(pdf_dir_value).expanduser()
         pdf_dir.mkdir(parents=True, exist_ok=True)
         output_path = pdf_dir / f"{note_path.stem}.pdf"
@@ -85,20 +85,6 @@ def _ensure_homebrew_library_path() -> None:
     env = dict(os.environ)
     env["DYLD_LIBRARY_PATH"] = f"/opt/homebrew/lib:{dyld_path}"
     raise SystemExit(subprocess.run([sys.executable, *sys.argv], env=env).returncode)
-
-
-def _resolve_note_arg(note_arg: str, env: dict[str, str]) -> Path:
-    raw_path = Path(note_arg).expanduser()
-    if raw_path.is_absolute():
-        note_path = raw_path
-    else:
-        vault_path = env.get("VICAYA_VAULT_PATH", "").strip()
-        if not vault_path:
-            raise ValueError("VICAYA_VAULT_PATH is required for relative note paths")
-        note_path = note_checks.resolve_note_path(note_arg, Path(vault_path))
-    if not note_path.exists():
-        raise OSError(f"note not found: {note_path}")
-    return note_path
 
 
 if __name__ == "__main__":
