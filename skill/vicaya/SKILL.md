@@ -1960,14 +1960,16 @@ note_path: <path of the saved research note>
 duration_min: <approximate>
 ---
 
-## What surprised me
-- <one bullet per surprise, or "nothing notable">
-
-## What I'd change in the skill
-- <one bullet per concrete SKILL.md or helper change worth making, or "nothing">
+## Retrospective
+- [POSITIVE] Evidence: <what worked well in this run, or "nothing">. Cause: <why it worked>. Fix: <what to preserve, or "none">. Scope: <local/global>.
+- [WORKFLOW] Evidence: <friction, wasted effort, unclear sequencing, or "nothing">. Cause: <likely cause>. Fix: <proposed change, or "none">. Scope: <local/global>.
+- [CONFUSION] Evidence: <misunderstanding, bad inference, or "nothing">. Cause: <likely cause>. Fix: <proposed change, or "none">. Scope: <local/global>.
+- [BEHAVIOR] Evidence: <missed required step, risky action, rule violation, or "nothing">. Cause: <likely cause>. Fix: <proposed change, or "none">. Scope: <local/global>.
+- [BUG] Evidence: <script/tool failure or unclear output, or "nothing">. Cause: <likely cause>. Fix: <proposed change, or "none">. Scope: <local/global>.
+- [DOC] Evidence: <instruction that should be clarified, or "nothing">. Cause: <likely cause>. Fix: <proposed documentation change, or "none">. Scope: <local/global>.
 
 ## What I changed this run
-- <one bullet per edit actually made to SKILL.md / research_sources.py, or "nothing">
+- <one bullet per edit actually made to SKILL.md / research_sources.py / helper scripts, or "nothing">
 
 ## Channel tuning
 - Promote to trusted: <Channel — one-line reason this run, or "none">
@@ -1975,8 +1977,9 @@ duration_min: <approximate>
 - New probationary channels seen: <comma-separated list, or "none">
 ```
 
-Be terse. Three bullets per section max. If a section is empty, write "nothing" — don't
-delete the heading. These files are the input to periodic skill-tuning passes.
+Be terse. Three bullets per retrospective tag max. If a tag has no item, write one
+`[TAG] ... "nothing"` bullet — don't delete the tag. These files are the input to
+periodic skill-tuning passes.
 
 ### Step 1b — Publish the run report
 
