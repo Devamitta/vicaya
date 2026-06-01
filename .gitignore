@@ -35,3 +35,7 @@ temp/
 .claude/settings.local.json
 vault
 runs/processed/
+
+AGENTS.md
+CLAUDE.md
+GEMINI.md

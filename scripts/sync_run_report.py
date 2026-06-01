@@ -2,7 +2,7 @@
 import os
 import subprocess
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from rich import print as rprint
 
@@ -38,7 +38,7 @@ def today_reports(repo_path: Path, today: str) -> list[str]:
 
 def main() -> None:
     load_dotenv(project_root / ".env")
-    today = datetime.now().strftime("%Y%m%d")
+    today = datetime.now(timezone.utc).strftime("%Y%m%d")
 
     user = os.environ.get("VICAYA_USER")
     if not user:
