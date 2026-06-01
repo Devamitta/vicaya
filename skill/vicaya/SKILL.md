@@ -59,7 +59,7 @@ Hard-coded for this machine. If a path is missing or a tool isn't installed, sto
 All user-specific paths come from the project's `.env` file (see `.env.example` at the repo root). The helper module resolves them on import. Agents do not hard-code paths; use the helpers and CLI.
 
 - Vault Root: `$VICAYA_VAULT_PATH` (This is the absolute path to the root directory of the vault).
-- Output folder in vault: `$VICAYA_VAULT_PATH/Vicaya/` (this folder is its own git repo — commit notes after writing)
+- Output folder in vault: `$VICAYA_VAULT_PATH/Vicaya/` (this folder is its own git repo — publish notes only after user approval via `scripts/sync_notes.py`)
 - Helper module: `<repo>/tools/research_sources.py`
 - Canon db: read-only SQLite at the path baked into the helper module.
 - Calibre library: path baked into the helper module. FTS indexing may or may not be complete depending on when the library was last indexed (14k books takes days to index from scratch). The helper checks FTS status automatically and falls back to metadata search if indexing is incomplete — don't try to force FTS. When FTS is active, snippets are returned with hits; when metadata-only, you get titles/authors/comments. Both are useful; note which mode is active in the scratch.
@@ -1713,57 +1713,17 @@ obsidian vault=Obsidian create \
 
 ### PDF generation (run after every successful vault write)
 
-After writing the note — whether via the Obsidian CLI or the disk fallback — generate
-a PDF copy. Read `VICAYA_PDF_PATH` from `.env`. If unset or empty, skip silently.
+After writing the note — whether via the Obsidian CLI or the disk fallback — validate
+the final note shape and generate a PDF copy.
 
-Write the following to `temp/gen_pdf_run.py`, then execute it with `uv run temp/gen_pdf_run.py`:
-
-```python
-# Generate PDF for the current vicaya note
-import re, os, sys, platform, subprocess
-from pathlib import Path
-
-# macOS: weasyprint needs Homebrew GLib/Pango; re-exec with library path set
-if platform.system() == "Darwin" and "/opt/homebrew/lib" not in os.environ.get("DYLD_LIBRARY_PATH", ""):
-    env = dict(os.environ)
-    env["DYLD_LIBRARY_PATH"] = "/opt/homebrew/lib:" + env.get("DYLD_LIBRARY_PATH", "")
-    sys.exit(subprocess.run([sys.executable] + sys.argv, env=env).returncode)
-
-env = {}
-if Path(".env").exists():
-    for line in Path(".env").read_text().splitlines():
-        if "=" in line and not line.startswith("#"):
-            k, _, v = line.partition("=")
-            env[k.strip()] = v.strip()
-
-pdf_dir = os.environ.get("VICAYA_PDF_PATH") or env.get("VICAYA_PDF_PATH", "")
-vault_path = os.environ.get("VICAYA_VAULT_PATH") or env.get("VICAYA_VAULT_PATH", "")
-if not pdf_dir or not vault_path:
-    sys.exit(0)
-
-import markdown
-from weasyprint import HTML, CSS
-from weasyprint.text.fonts import FontConfiguration
-
-today = "<TODAY>"
-slug = "<SLUG>"
-note_file = Path(vault_path).expanduser() / "Vicaya" / f"{today} - {slug}.md"
-pdf_out = Path(pdf_dir).expanduser() / f"{today} - {slug}.pdf"
-pdf_out.parent.mkdir(parents=True, exist_ok=True)
-
-text = note_file.read_text()
-body = re.sub(r'^---\n.*?\n---\n', '', text, count=1, flags=re.DOTALL)
-html = markdown.markdown(body, extensions=['tables', 'fenced_code'])
-full_html = f"<html><body>{html}</body></html>"
-
-font_config = FontConfiguration()
-css = CSS(string="@page { margin: 20mm; } body { font-family: Georgia, serif; font-size: 11pt; line-height: 1.6; }", font_config=font_config)
-HTML(string=full_html).write_pdf(str(pdf_out), stylesheets=[css], font_config=font_config)
-print(f"PDF → {pdf_out}")
+```bash
+uv run scripts/validate_note.py "Vicaya/${TODAY} - ${SLUG}.md"
+uv run scripts/generate_note_pdf.py "Vicaya/${TODAY} - ${SLUG}.md"
 ```
 
-Replace `<TODAY>` and `<SLUG>` with the actual values used when writing the note.
-Include the PDF path in the Section 1 run summary if generation succeeded.
+`generate_note_pdf.py` reads `VICAYA_PDF_PATH` from `.env`. If unset or empty, it exits
+successfully with a skip message. Include the PDF path in the Section 1 run summary if
+generation succeeded.
 
 ### GitHub push (user-triggered)
 
@@ -1773,14 +1733,18 @@ After the note is written and the final report is shown, ask the user using `Ask
 **If Yes**, run:
 
 ```bash
-uv run scripts/sync_notes.py "Vicaya/${today} - ${slug}.md"
+uv run scripts/sync_notes.py "Vicaya/${TODAY} - ${SLUG}.md"
 ```
+
+`scripts/sync_notes.py` is a pre-approved publishing script for the notes repo only.
+It may pull, commit, and push inside `$VICAYA_VAULT_PATH/Vicaya/`, but only after
+the user approves publishing the note.
 
 **If No**, leave the note uncommitted and tell the user it is saved to the vault only.
 
 A sync failure is never fatal — the note is already saved to the vault.
 
-→ **Phase 7 exit:** `scratch-gate 7`, then `uv run scripts/sync_run_report.py`. The run is not complete without both — the gate confirms the vault path and PDF path are recorded in the dossier, and the sync publishes the latest `runs/*.md` report.
+→ **Phase 7 exit:** `scratch-gate 7`, then `uv run scripts/sync_run_report.py`. The run is not complete without both — the gate confirms the vault path and PDF path are recorded in the dossier, and the sync publishes the latest `runs/*.md` report. `scripts/sync_run_report.py` is a pre-approved run-report publishing script and may pull, commit, and push Vicaya run reports in this project repo. New or materially modified scripts are not automatically pre-approved for git, publishing, deployment, sync, delete, or overwrite operations.
 
 ## Final report to the user
 

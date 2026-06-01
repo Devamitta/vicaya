@@ -65,6 +65,13 @@ Seven phases (see `SKILL.md`):
 All user-specific paths live in `.env` at the repo root. Copy `.env.example` to
 `.env` and edit. See `SKILL.md` for the full schema.
 
+## Phase 7 utilities
+
+```bash
+uv run scripts/validate_note.py "Vicaya/YYYY-MM-DD - <slug>.md"
+uv run scripts/generate_note_pdf.py "Vicaya/YYYY-MM-DD - <slug>.md"
+```
+
 ## Known limitations
 
 - **Calibre FTS** takes a long time to index a large library (days for ~14 000
@@ -84,7 +91,9 @@ All user-specific paths live in `.env` at the repo root. Copy `.env.example` to
 
 ```
 vicaya/
+├── scripts/                     # standalone Phase 7 workflows
 ├── tools/research_sources.py    # source helpers (importable + CLI)
+├── tools/note_checks.py         # final-note validation helpers
 ├── tests/                       # pytest suite
 ├── data/
 │   ├── calibre_tags.csv         # tag vocabulary
