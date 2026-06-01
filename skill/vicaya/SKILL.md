@@ -11,8 +11,8 @@ Run a multi-phase research session across the user's local + web sources and wri
 
 Four structural commands carry the run. Everything else is reference.
 
-1. **Phase 0:** `scratch-init <slug>` and `export VICAYA_SCRATCH=…` + `export VICAYA_PHASE=0`. Every helper call from now on auto-logs to scratch.
-2. **Each phase boundary:** end the prior phase with `scratch-gate <prev-phase>`, then `export VICAYA_PHASE=<new-phase>` **before** any helper call in the new phase (otherwise auto-log attributes entries to the old phase). The gate refuses if earlier gates are missing and prints the exact evidence still needed.
+1. **Phase 0:** `scratch-init <slug>` (add `--class thematic` for non-sutta-anchored questions). This records the active scratch path so every later helper call auto-logs to it — no env exports needed. Use `export VICAYA_SCRATCH=…`/`VICAYA_PHASE=…` only to override.
+2. **Each phase boundary:** end the prior phase with `scratch-gate <prev-phase>`. The gate auto-advances the active phase, so the next phase's helper calls log correctly without any manual step. It refuses if earlier gates are missing and prints the exact evidence still needed. Thematic runs auto-skip the Phase 2.5 (SC-parallels) and 3b (Sanskrit) gates.
 3. **Start of Phase 5:** `scratch-verify`. Exit 0 = proceed to synthesis. Exit 1 = backfill the named phase first; do not draft.
 4. **End of Phase 7:** `scratch-gate 7`, then publish the run report with `uv run scripts/sync_run_report.py`. The run is not complete without both.
 
@@ -71,6 +71,8 @@ All user-specific paths come from the project's `.env` file (see `.env.example` 
 
 **Prefer the CLI over `python -c` heredocs.** Heredoc invocations have repeatedly caused quoting bugs (single-quotes-in-single-quotes SyntaxErrors) and field-name guesses (`.snippet` on a `CanonHit`, which has no such field). The CLI eliminates both.
 
+**`jq` may be absent on this machine** (same caveat as `rg` — it's a Claude Code wrapper, not always a real binary). To slice helper JSON, pipe to `uv run python3 -c "import json,sys; …"`, not `jq`.
+
 Run from the project root:
 
 ```bash
@@ -92,7 +94,7 @@ Subcommands (each prints JSON to stdout):
 | `gemini-cross-check` | `--timeout N`; **prompt on stdin** | Legacy direct gemini call. Not used in Phase 6; kept for ad-hoc use if you want a second opinion from a different provider. |
 | `get-ebc-overview SUTTA_CODE` | — | Parsed EBC overview card: PTS ref, titles, themes, training, formula, **named Āgama parallels**, partial parallels. Accepts `MN10`, `mn 10`, `mn-10`, `DN22`, `MA98`, etc. Returns `EBCOverview` JSON or exits 1 if missing. |
 | `search-ebc QUERY` | `--folder PATH` `--limit N` | Fixed-string grep across the EBC vault (markdown only). Returns `VaultHit`s. `--folder` accepts a subdir like `+Suttas/Overviews Suttas/MN` or `+Vinaya/Patimokkha/bmc1`. |
-| `calibre-check` | — | Probe whether the Calibre library is reachable right now. Exits 0 if ok, 1 if locked or unavailable, with a specific message. Use at Phase 3 start. |
+| `calibre-check` | — | Probe whether the Calibre library is reachable right now by running a real search, so its verdict matches what `search-calibre` will do. Exits 0 if ok, 1 if locked or unavailable, with a specific message. Use at Phase 3 start. |
 | `sc-parallels CITATION` | `--no-text` | Look up parallels for a citation (e.g. `mn18`, `sn35.28`) in the offline SuttaCentral archive. Returns `SCParallel` objects: `ref`, `resemblance` (bool, `~` prefix), `paragraph_range`, `text_pali`, `text_lzh`, `text_san`, `text_pra`, `translation_en`, `text_gaps` (list — explicit when text isn't in the partial archive). Parallel *identification* is comprehensive; text retrieval is best-effort. |
 | `sc-search QUERY` | `--lang pli\|lzh\|san\|pra\|en` `--limit N` | Fixed-string grep across SuttaCentral offline root texts in one language. `lzh` = Literary Chinese Āgamas. Returns `VaultHit`s with the matched JSON segment. |
 
@@ -250,19 +252,18 @@ the dossier without re-running any expensive search.
 Five subcommands cover every interaction:
 
 ```bash
-# 1. At Phase 0 start — create the file
+# 1. At Phase 0 start — create the file (records the active scratch + phase)
 uv run tools/research_sources.py scratch-init <slug>
-export VICAYA_SCRATCH="$(pwd)/data/scratch/<slug>.md"
+# add --class thematic for non-sutta-anchored questions (auto-skips 2.5 / 3b)
 
-# 2. While searching — auto-log fires for every helper call when VICAYA_SCRATCH is set
-export VICAYA_PHASE=2     # update at every phase boundary
+# 2. While searching — auto-log fires for every helper call, no exports needed
 uv run tools/research_sources.py search-canon "anatta" --books "s*_mul"
 # (full Pāḷi + English of every hit lands in scratch automatically)
 
 # 3. For manual entries (web fetches, Read-tool excerpts you want to cite)
 uv run tools/research_sources.py scratch-log 2 web "https://..." --summary "..."
 
-# 4. At each phase end — appends the canonical exit-gate checklist
+# 4. At each phase end — appends the exit-gate checklist and advances the phase
 uv run tools/research_sources.py scratch-gate 2
 # Refuses if any earlier phase's gate is missing and prints the missing evidence list.
 
@@ -273,10 +274,17 @@ uv run tools/research_sources.py scratch-verify    # exit 0 = proceed, 1 = backf
 uv run tools/research_sources.py scratch-resume <slug>
 ```
 
-**Auto-logging is on whenever `VICAYA_SCRATCH` and `VICAYA_PHASE` are exported.**
-Every `search-*`, `sc-*`, `get-ebc-overview`, `fetch-transcript`, `cross-check`,
-and `gemini-cross-check` call appends a full JSON-results block to the named
-phase. Forgetting to log is structurally impossible.
+**Auto-logging is on as soon as `scratch-init` has run** (the active scratch path
+and phase are persisted to `data/scratch/.active`; `VICAYA_SCRATCH`/`VICAYA_PHASE`
+override only if you set them). Every `search-*`, `sc-*`, `get-ebc-overview`,
+`fetch-transcript`, `cross-check`, and `gemini-cross-check` call appends a full
+JSON-results block to the active phase. Forgetting to log is structurally impossible.
+
+**Running parallel agents?** `data/scratch/.active` is a single shared pointer, so
+a second agent's `scratch-init` will redirect the first agent's auto-logs to the
+wrong file. When more than one Vicaya run may be live at once, pin your own scratch
+explicitly — `scratch-init` prints the exact `export VICAYA_SCRATCH=…` line to use;
+the env var always wins over `.active`.
 
 **Iron rule:** a phase cannot be left without calling `scratch-gate <phase>`.
 `scratch-verify` is the enforcement mechanism at Phase 5 start — it exits 1 and
@@ -1061,6 +1069,8 @@ uv run tools/research_sources.py calibre-check
 If this exits 1, the library is locked — typically by the Calibre desktop GUI or
 a parallel Vicaya agent. The message tells you which. Options: close the GUI,
 wait for the other agent to finish, or proceed without Calibre and note the gap.
+`search-calibre` under a lock returns `{"status": "unavailable", "reason": …}`
+(exit 1) rather than crashing — treat it as a gap, not a retry loop.
 Do not silently return 0-hit results when the cause is a lock.
 
 The user's Calibre library is whole-library non-fiction (Buddhism, religion, psychology). The tag vocabulary is in `<repo>/data/calibre_tags.csv` (~2k tags).

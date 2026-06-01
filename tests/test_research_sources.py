@@ -196,7 +196,11 @@ class TestSearchVault:
 @calibre_available
 class TestSearchCalibre:
     def test_metadata_search_by_tag(self):
-        hits = search_calibre("", tags=["Buddhism"], limit=3)
+        from tools.research_sources import CalibreUnavailable
+        try:
+            hits = search_calibre("", tags=["Buddhism"], limit=3)
+        except CalibreUnavailable as e:
+            pytest.skip(f"calibre library locked: {e}")
         assert isinstance(hits, list)
         for h in hits:
             assert isinstance(h, CalibreHit)
@@ -204,7 +208,11 @@ class TestSearchCalibre:
             assert h.title
 
     def test_search_returns_calibre_hits(self):
-        hits = search_calibre("Buddha", limit=3)
+        from tools.research_sources import CalibreUnavailable
+        try:
+            hits = search_calibre("Buddha", limit=3)
+        except CalibreUnavailable as e:
+            pytest.skip(f"calibre library locked: {e}")
         assert isinstance(hits, list)
 
 
@@ -608,6 +616,89 @@ class TestScratchDossier:
         assert result["ok"] is False
         assert "[REJECTED]" in result["reason"] or "REJECTED" in result["reason"]
         assert result["offending_lines"]
+
+    def test_thematic_run_auto_skips_2_5_and_3b(self, tmp_path, monkeypatch):
+        from tools.research_sources import _read_state, scratch_gate, scratch_init
+        monkeypatch.setattr("tools.research_sources._SCRATCH_DIR", tmp_path)
+        monkeypatch.delenv("VICAYA_SCRATCH", raising=False)
+        path = scratch_init("test-thematic", run_class="thematic")
+        for phase in ("0", "1", "2"):
+            assert scratch_gate(phase)["ok"]
+        # Gating phase 3 must succeed without the agent ever touching 2.5,
+        # which would otherwise be a missing-prior-gate refusal.
+        assert scratch_gate("3")["ok"]
+        text = path.read_text(encoding="utf-8")
+        assert "PHASE 2.5 EXIT GATE" in text
+        assert "AUTO-SKIPPED (thematic run)" in text
+        # Advance skips over the auto-skipped 3b → next worked phase is 4.
+        assert _read_state()["phase"] == "4"
+        # Gating 4 auto-skips 3b too.
+        assert scratch_gate("4")["ok"]
+        assert "PHASE 3b EXIT GATE" in path.read_text(encoding="utf-8")
+
+    def test_sutta_anchored_run_still_requires_2_5(self, tmp_path, monkeypatch):
+        from tools.research_sources import scratch_gate, scratch_init
+        monkeypatch.setattr("tools.research_sources._SCRATCH_DIR", tmp_path)
+        path = scratch_init("test-anchored")  # default class
+        monkeypatch.setenv("VICAYA_SCRATCH", str(path))
+        for phase in ("0", "1", "2"):
+            scratch_gate(phase)
+        # No auto-skip: gating 3 refuses because 2.5 is missing.
+        assert scratch_gate("3")["ok"] is False
+
+    def test_state_file_resolves_scratch_without_env(self, tmp_path, monkeypatch):
+        from tools.research_sources import _scratch_path, scratch_init
+        monkeypatch.setattr("tools.research_sources._SCRATCH_DIR", tmp_path)
+        monkeypatch.delenv("VICAYA_SCRATCH", raising=False)
+        path = scratch_init("test-state")
+        # No env set — resolution falls through to the active-state file.
+        assert _scratch_path() == path
+
+    def test_gate_advances_active_phase_in_state(self, tmp_path, monkeypatch):
+        from tools.research_sources import _read_state, scratch_gate, scratch_init
+        monkeypatch.setattr("tools.research_sources._SCRATCH_DIR", tmp_path)
+        monkeypatch.delenv("VICAYA_SCRATCH", raising=False)
+        scratch_init("test-advance")
+        assert _read_state()["phase"] == "0"
+        scratch_gate("0")
+        assert _read_state()["phase"] == "1"
+
+
+class TestCalibreCheckHonesty:
+    """calibre-check must agree with the real search path, not a cheap probe."""
+
+    def test_available_when_search_succeeds(self, monkeypatch, tmp_path):
+        import tools.research_sources as rs
+        monkeypatch.setattr(rs, "DEFAULT_CALIBRE_LIBRARY", tmp_path)
+        monkeypatch.setattr(rs, "search_calibre", lambda *a, **k: [])
+        ok, msg = rs.calibre_library_available()
+        assert ok and msg == "ok"
+
+    def test_unavailable_when_search_raises_lock(self, monkeypatch, tmp_path):
+        import tools.research_sources as rs
+
+        def _locked(*a, **k):
+            raise rs.CalibreUnavailable("database is locked")
+
+        monkeypatch.setattr(rs, "DEFAULT_CALIBRE_LIBRARY", tmp_path)
+        monkeypatch.setattr(rs, "search_calibre", _locked)
+        ok, msg = rs.calibre_library_available()
+        assert ok is False
+        assert "locked" in msg
+
+    def test_probe_uses_short_timeout_to_fail_fast(self, monkeypatch, tmp_path):
+        import tools.research_sources as rs
+        seen = {}
+
+        def _capture(query, **kwargs):
+            seen.update(kwargs)
+            return []
+
+        monkeypatch.setattr(rs, "DEFAULT_CALIBRE_LIBRARY", tmp_path)
+        monkeypatch.setattr(rs, "search_calibre", _capture)
+        rs.calibre_library_available()
+        # Probe must not inherit the 120s search window — it fails fast.
+        assert seen.get("timeout") == 15
 
 
 @canon_available

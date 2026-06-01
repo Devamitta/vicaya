@@ -585,23 +585,20 @@ def _run_calibre(
 
 
 def calibre_library_available(library: Path | None = None) -> tuple[bool, str]:
-    """Probe the Calibre library with a cheap call.
+    """Probe the Calibre library by running a real (tiny) search.
 
     Returns (ok, message). `ok=False` means a search would fail right now —
-    typically because the GUI or another agent holds the lock. Callers (and
-    SKILL.md preflight) can use this before Phase 3 to give a clear message
-    instead of discovering the lock mid-phase.
+    typically because the GUI or another agent holds the lock. Exercises the
+    exact path `search-calibre` uses, so this verdict cannot disagree with the
+    real query (the bug where the cheap `list` probe said "ok" while FTS died).
     """
     library = library or DEFAULT_CALIBRE_LIBRARY
     if library is None or not library.exists():
         return False, f"library path not set or missing: {library}"
     try:
-        _run_calibre(
-            ["calibredb", "list", "--limit", "1", "--for-machine",
-             "--fields", "id", "--library-path", str(library)],
-            timeout=15,
-            retries=1,
-        )
+        # Short timeout: a held lock makes calibredb hang, so the full 120s
+        # search window would make this probe useless. Fail fast instead.
+        search_calibre("dhamma", library=library, limit=1, timeout=15)
         return True, "ok"
     except CalibreUnavailable as e:
         return False, str(e)
@@ -643,6 +640,7 @@ def search_calibre(
     tags: list[str] | None = None,
     library: Path | None = None,
     limit: int = 20,
+    timeout: int | None = None,
 ) -> list[CalibreHit]:
     """Search the Calibre library.
 
@@ -650,6 +648,8 @@ def search_calibre(
     If FTS is enabled, run a full-text search; otherwise fall back to metadata search.
 
     Diacritics are stripped from the query — the Calibre library uses ASCII Pāḷi.
+    `timeout` overrides the per-call subprocess budget (used by the fast preflight
+    probe); None keeps the generous search defaults.
 
     Raises CalibreUnavailable on a CLI error (e.g. library locked by the GUI
     or another agent). An empty list means the search ran but matched nothing.
@@ -659,8 +659,8 @@ def search_calibre(
         return []
     query = _strip_diacritics(query)
     if _calibre_fts_available(library):
-        return _calibre_fts_search(query, tags, library, limit)
-    return _calibre_metadata_search(query, tags, library, limit)
+        return _calibre_fts_search(query, tags, library, limit, timeout=timeout or 120)
+    return _calibre_metadata_search(query, tags, library, limit, timeout=timeout or 60)
 
 
 def _build_tag_search(tags: list[str] | None) -> str:
@@ -671,7 +671,7 @@ def _build_tag_search(tags: list[str] | None) -> str:
 
 
 def _calibre_fts_search(
-    query: str, tags: list[str] | None, library: Path, limit: int
+    query: str, tags: list[str] | None, library: Path, limit: int, timeout: int = 120
 ) -> list[CalibreHit]:
     cmd = [
         "calibredb",
@@ -686,7 +686,7 @@ def _calibre_fts_search(
     tag_search = _build_tag_search(tags)
     if tag_search:
         cmd.extend(["--restrict-to", f"search:{tag_search}"])
-    result = _run_calibre(cmd, timeout=120)
+    result = _run_calibre(cmd, timeout=timeout)
     if not result.stdout.strip():
         return []
     try:
@@ -709,7 +709,7 @@ def _calibre_fts_search(
 
 
 def _calibre_metadata_search(
-    query: str, tags: list[str] | None, library: Path, limit: int
+    query: str, tags: list[str] | None, library: Path, limit: int, timeout: int = 60
 ) -> list[CalibreHit]:
     # Calibre's default free-text search hits all fields. Compose as `query (tags:X or tags:Y)`.
     parts: list[str] = []
@@ -732,7 +732,7 @@ def _calibre_metadata_search(
         "--library-path",
         str(library),
     ]
-    result = _run_calibre(cmd, timeout=60)
+    result = _run_calibre(cmd, timeout=timeout)
     if not result.stdout.strip():
         return []
     try:
@@ -1752,6 +1752,31 @@ def lookup_book(value: str) -> list[dict]:
 
 _SCRATCH_DIR = Path(__file__).resolve().parents[1] / "data" / "scratch"
 
+# Phases auto-skipped for thematic (non-sutta-anchored) runs.
+_AUTO_SKIP_PHASES = ("2.5", "3b")
+
+
+def _read_state() -> dict:
+    try:
+        return json.loads((_SCRATCH_DIR / ".active").read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def _write_state(scratch=None, phase=None) -> None:
+    """Persist the active scratch path / phase so they survive between shell calls."""
+    try:
+        _SCRATCH_DIR.mkdir(parents=True, exist_ok=True)
+        state = _read_state()
+        if scratch is not None:
+            state["scratch"] = str(scratch)
+        if phase is not None:
+            state["phase"] = str(phase)
+        (_SCRATCH_DIR / ".active").write_text(json.dumps(state), encoding="utf-8")
+    except Exception:
+        pass
+
+
 # (phase_id, title, expected_evidence)
 _SCRATCH_PHASES: list[tuple[str, str, list[str]]] = [
     ("0", "Phase 0 — Request understanding", [
@@ -1816,20 +1841,29 @@ _PHASE_INDEX = {pid: (i, title, evidence) for i, (pid, title, evidence) in enume
 
 
 def _scratch_path(slug: str | None = None) -> Path:
-    """Resolve the scratch path. Env override > slug > error."""
+    """Resolve the scratch path. Env override > active-state file > slug > error."""
     env = os.environ.get("VICAYA_SCRATCH")
     if env:
         return Path(env)
+    state = _read_state().get("scratch")
+    if state:
+        return Path(state)
     if slug:
         return _SCRATCH_DIR / f"{slug}.md"
-    raise ValueError("no scratch path: set VICAYA_SCRATCH or pass a slug")
+    raise ValueError("no scratch path: set VICAYA_SCRATCH, run scratch-init, or pass a slug")
 
 
-def scratch_init(slug: str) -> Path:
+def _run_class(text: str) -> str:
+    m = _re.search(r"\*\*Run class:\*\*\s*(\S+)", text)
+    return m.group(1) if m else "sutta-anchored"
+
+
+def scratch_init(slug: str, run_class: str = "sutta-anchored") -> Path:
     """Create the scratch file with header + section skeleton. Idempotent — refuses to overwrite."""
     _SCRATCH_DIR.mkdir(parents=True, exist_ok=True)
     path = _SCRATCH_DIR / f"{slug}.md"
     if path.exists():
+        _write_state(path)
         return path
     lines = [
         f"# Vicaya dossier — {slug}",
@@ -1838,6 +1872,7 @@ def scratch_init(slug: str) -> Path:
         "**Scope assumptions:** <fill in>",
         "**Ambiguity status:** <clear|minor_uncertainty|unclear>",
         f"**Slug:** {slug}",
+        f"**Run class:** {run_class}",
         "**Vault note:** <set at Phase 7>",
         "",
         "## Phase log",
@@ -1847,6 +1882,7 @@ def scratch_init(slug: str) -> Path:
         lines.append(f"## {title}")
         lines.append("")
     path.write_text("\n".join(lines), encoding="utf-8")
+    _write_state(path, "0")
     return path
 
 
@@ -1936,6 +1972,18 @@ def scratch_gate(phase: str, scratch: Path | None = None) -> dict:
         raise ValueError(f"unknown phase {phase!r}")
     text = path.read_text(encoding="utf-8")
     idx = _PHASE_INDEX[phase][0]
+    # Thematic (non-sutta-anchored) runs auto-skip SC-parallels (2.5) and Sanskrit
+    # (3b): inapplicable, so the agent shouldn't hand-log empty searches to pass them.
+    if _run_class(text) == "thematic":
+        for skip_id in _AUTO_SKIP_PHASES:
+            if _PHASE_INDEX[skip_id][0] < idx and _gate_marker(skip_id) not in text:
+                stitle = _PHASE_INDEX[skip_id][1]
+                _append_under_phase(
+                    path, skip_id,
+                    f"{_gate_marker(skip_id)}\n- AUTO-SKIPPED (thematic run): "
+                    f"{stitle} not applicable to a non-sutta-anchored question.",
+                )
+                text = path.read_text(encoding="utf-8")
     # Verify every prior phase has a gate.
     for prev_id, prev_title, prev_expected in _SCRATCH_PHASES[:idx]:
         if _gate_marker(prev_id) not in text:
@@ -1984,6 +2032,15 @@ def scratch_gate(phase: str, scratch: Path | None = None) -> dict:
     for item in evidence:
         block_lines.append(f"- [ ] {item}")
     _append_under_phase(path, phase, "\n".join(block_lines))
+    # Advance the active phase so the next phase's searches auto-log correctly
+    # without the agent re-exporting VICAYA_PHASE. Thematic runs skip over the
+    # auto-skipped phases so logs land on the next phase actually worked.
+    nxt = idx + 1
+    if _run_class(text) == "thematic":
+        while nxt < len(_SCRATCH_PHASES) and _SCRATCH_PHASES[nxt][0] in _AUTO_SKIP_PHASES:
+            nxt += 1
+    if nxt < len(_SCRATCH_PHASES):
+        _write_state(phase=_SCRATCH_PHASES[nxt][0])
     return {"ok": True, "phase": phase, "title": title}
 
 
@@ -2036,12 +2093,15 @@ def scratch_resume(slug: str | None = None, scratch: Path | None = None) -> dict
 
 
 def _maybe_autolog(cmd: str, argv: list[str], result_obj) -> None:
-    """If VICAYA_SCRATCH is set, append a one-entry log for this helper invocation.
+    """Append a one-entry log for this helper invocation to the active scratch.
 
-    Phase is read from VICAYA_PHASE (default '?'). Failures are swallowed —
+    Scratch path and phase come from VICAYA_SCRATCH/VICAYA_PHASE if set, else the
+    active-state file written by scratch-init/scratch-gate. Failures are swallowed —
     auto-logging must never break a search.
     """
-    if not os.environ.get("VICAYA_SCRATCH"):
+    state = _read_state()
+    scratch = os.environ.get("VICAYA_SCRATCH") or state.get("scratch")
+    if not scratch:
         return
     if cmd in {"scratch-init", "scratch-log", "scratch-gate",
                "scratch-verify", "scratch-resume", "lookup-book"}:
@@ -2050,10 +2110,10 @@ def _maybe_autolog(cmd: str, argv: list[str], result_obj) -> None:
         import datetime as _dt
         import json as _json
         from dataclasses import asdict as _asdict, is_dataclass as _is_dc
-        path = Path(os.environ["VICAYA_SCRATCH"])
+        path = Path(scratch)
         if not path.exists():
             return
-        phase = os.environ.get("VICAYA_PHASE", "?")
+        phase = os.environ.get("VICAYA_PHASE") or state.get("phase") or "?"
         ts = _dt.datetime.now().isoformat(timespec="seconds")
         hits: int | None = None
         if isinstance(result_obj, list):
@@ -2205,6 +2265,9 @@ def _cli() -> int:
     psi = sub.add_parser("scratch-init",
                          help="Create the scratch dossier file for a run.")
     psi.add_argument("slug")
+    psi.add_argument("--class", dest="run_class", default="sutta-anchored",
+                     choices=["sutta-anchored", "thematic"],
+                     help="thematic = non-sutta-anchored; auto-skips Phase 2.5/3b gates.")
 
     psl = sub.add_parser("scratch-log",
                          help="Append a manual entry to the scratch dossier under a phase.")
@@ -2252,8 +2315,14 @@ def _cli() -> int:
         autolog_argv = [args.book_code, str(args.paranum)]
         _dump(result_for_autolog)
     elif args.cmd == "search-calibre":
-        result_for_autolog = search_calibre(args.query, tags=args.tags, limit=args.limit)
         autolog_argv = [args.query] + (["--tags"] + list(args.tags) if args.tags else []) + ["--limit", str(args.limit)]
+        try:
+            result_for_autolog = search_calibre(args.query, tags=args.tags, limit=args.limit)
+        except CalibreUnavailable as e:
+            result_for_autolog = {"status": "unavailable", "reason": str(e), "hits": []}
+            _dump(result_for_autolog)
+            _maybe_autolog(args.cmd, autolog_argv, result_for_autolog)
+            return 1
         _dump(result_for_autolog)
     elif args.cmd == "search-youtube":
         channels = {} if args.no_filter else None
@@ -2320,8 +2389,11 @@ def _cli() -> int:
         autolog_argv = [args.query, "--lang", args.lang, "--limit", str(args.limit)]
         _dump(result_for_autolog)
     elif args.cmd == "scratch-init":
-        path = scratch_init(args.slug)
-        _dump({"ok": True, "path": str(path), "slug": args.slug})
+        path = scratch_init(args.slug, run_class=args.run_class)
+        _dump({
+            "ok": True, "path": str(path), "slug": args.slug, "class": args.run_class,
+            "pin_for_parallel_runs": f"export VICAYA_SCRATCH={path}",
+        })
     elif args.cmd == "scratch-log":
         path = scratch_log(
             args.phase,
