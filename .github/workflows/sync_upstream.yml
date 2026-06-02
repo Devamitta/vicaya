@@ -1,0 +1,35 @@
+name: Sync from Upstream
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * *' # Daily at midnight UTC
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: 'main'
+          token: ${{ secrets.GH_PAT }}
+
+      - name: Configure Git User
+        run: |
+          git config --global user.name "GitHub Actions Sync"
+          git config --global user.email "actions@github.com"
+
+      - name: Sync with upstream
+        run: |
+          cp .github/workflows/sync_upstream.yml /tmp/sync_upstream.yml
+          git remote add upstream https://github.com/bdhrs/vicaya.git
+          git fetch upstream main
+          git reset --hard upstream/main
+          mkdir -p .github/workflows
+          cp /tmp/sync_upstream.yml .github/workflows/sync_upstream.yml
+          git add .github/workflows/sync_upstream.yml
+          git diff --cached --quiet || git commit -m "chore: preserve sync workflow"
+          git push --force origin main
